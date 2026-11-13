@@ -51,6 +51,10 @@ def _auth_note(action: str) -> str:
     )
 
 
+def _has_finding(t: TargetAssessment, code: str) -> bool:
+    return any(f.code == code for f in t.findings)
+
+
 def recommend_active_step(t: TargetAssessment) -> ActiveRecommendation:
     """Return the single most informative authorized follow-up step for ``t``."""
     ap = t.ap
@@ -88,6 +92,18 @@ def recommend_active_step(t: TargetAssessment) -> ActiveRecommendation:
             "WEP is broken offline from passively collected frames.",
             "No gated action is needed to prove the weakness; prioritise migration to WPA2/3.",
             "",
+        )
+
+    # 4a. WPA3/WPA2 transition mode — a WPA2-capable client can be downgraded.
+    if ap.encryption == Encryption.WPA3 and _has_finding(t, "WPA3_DOWNGRADE_POSSIBLE"):
+        return ActiveRecommendation(
+            ACTION_DEAUTH,
+            "high",
+            ch,
+            f"WPA3/WPA2 transition mode on channel {ch} (SAE + PSK advertised).",
+            "A single-client targeted deauth can push a WPA2-capable client to reassociate over "
+            "WPA2, exposing a crackable 4-way handshake (downgrade). WPA3-only closes this.",
+            _auth_note(ACTION_DEAUTH),
         )
 
     # 4. WPA3/SAE or Enterprise — no offline-crackable PSK.

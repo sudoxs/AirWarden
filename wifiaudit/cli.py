@@ -237,6 +237,10 @@ def analyze(
     else:
         console.print("Active follow-up: none suggested.")
 
+    evil = meta.get("evil_twin_ssids") or []
+    if evil:
+        console.print(f"Evil-twin bait (probed, not in range): [bold]{', '.join(evil)}[/]")
+
     console.print(f"Wrote {json_path} and {html_path}")
 
 

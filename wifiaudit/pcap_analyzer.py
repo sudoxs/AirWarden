@@ -6,7 +6,15 @@ from collections import defaultdict
 from collections.abc import Iterator
 from typing import Any
 
-from scapy.all import EAPOL, Dot11, Dot11Beacon, Dot11Elt, Dot11ProbeResp, rdpcap
+from scapy.all import (
+    EAPOL,
+    Dot11,
+    Dot11Beacon,
+    Dot11Elt,
+    Dot11ProbeReq,
+    Dot11ProbeResp,
+    rdpcap,
+)
 
 from wifiaudit.models import AccessPoint, Encryption, Finding, TargetAssessment
 from wifiaudit.scan_classifier import classify_scan
@@ -17,6 +25,26 @@ _MS_OUI = b"\x00\x50\xf2"
 _WPS_TYPE = 4
 
 _DISCONNECT_FIELD = "deauth_frames"
+
+# RSN AKM suite selector types (last byte of a 00-0F-AC-xx selector).
+_PSK_AKMS = frozenset({2, 4, 6})  # PSK, FT-PSK, PSK-SHA256
+_SAE_AKMS = frozenset({8, 9})  # SAE, FT-SAE
+_ENT_AKMS = frozenset({1, 3, 5, 11, 12})  # 802.1X variants
+
+# EAP method types worth flagging (RFC 3748 + common vendor).
+_EAP_NAMES = {
+    1: "Identity",
+    4: "MD5",
+    6: "GTC",
+    13: "TLS",
+    17: "LEAP",
+    18: "SIM",
+    21: "TTLS",
+    23: "AKA",
+    25: "PEAP",
+    50: "AKA'",
+}
+_WEAK_EAP = frozenset({4, 5, 6, 17})  # MD5, OTP, GTC, LEAP — crackable / downgradable
 
 
 def _iter_elts(frame: Any) -> Iterator[Any]:
@@ -55,27 +83,42 @@ def _channel_of(frame: Any) -> int:
         return 0
 
 
-def _rsn_akm_encryption(info: bytes) -> Encryption:
+def _rsn_akm_set(info: bytes) -> set[int]:
+    """Return the set of RSN AKM selector types advertised in an RSN IE body."""
+    out: set[int] = set()
     try:
-        idx = 2
-        idx += 4
+        idx = 2 + 4  # version (2) + group cipher suite (4)
         pc = int.from_bytes(info[idx : idx + 2], "little")
         idx += 2 + pc * 4
         ac = int.from_bytes(info[idx : idx + 2], "little")
         idx += 2
         for i in range(ac):
             akm = info[idx + i * 4 : idx + (i + 1) * 4]
-            if akm[:3] == b"\x00\x0f\xac":
-                t = akm[3]
-                if t == 1:
-                    return Encryption.ENTERPRISE
-                if t == 2:
-                    return Encryption.WPA2
-                if t == 8:
-                    return Encryption.WPA3
-        return Encryption.WPA2
+            if len(akm) == 4 and akm[:3] == b"\x00\x0f\xac":
+                out.add(akm[3])
     except Exception:
+        return set()
+    return out
+
+
+def _encryption_from_akms(akms: set[int]) -> Encryption:
+    """Pick the strongest encryption implied by a set of AKM selector types."""
+    if akms & _SAE_AKMS:
+        return Encryption.WPA3
+    if akms & _ENT_AKMS:
+        return Encryption.ENTERPRISE
+    if akms & _PSK_AKMS:
         return Encryption.WPA2
+    return Encryption.WPA2  # RSN present but AKM unknown: assume WPA2
+
+
+def _is_transition(akms: set[int]) -> bool:
+    """True for a WPA3/WPA2 transition BSSID (both SAE and PSK AKMs advertised)."""
+    return bool(akms & _SAE_AKMS) and bool(akms & _PSK_AKMS)
+
+
+def _rsn_akm_encryption(info: bytes) -> Encryption:
+    return _encryption_from_akms(_rsn_akm_set(info))
 
 
 def _rsn_pmf(info: bytes) -> bool:
@@ -104,6 +147,19 @@ def _rsn_info(frame: Any) -> tuple[Encryption, bool]:
         if eid == _VENDOR_IE_ID and info.startswith(_MS_OUI + b"\x01"):
             return Encryption.WPA, False
     return Encryption.OPEN, False
+
+
+def _rsn_akm_set_of(frame: Any) -> set[int]:
+    """Return the RSN AKM selector set from a frame's RSN IE (empty if none)."""
+    for elt in _iter_elts(frame):
+        try:
+            eid = int(elt.ID)
+            info = bytes(elt.info or b"")
+        except Exception:
+            continue
+        if eid == _RSN_IE_ID and len(info) >= 8:
+            return _rsn_akm_set(info)
+    return set()
 
 
 def _has_wps(frame: Any) -> bool:
@@ -220,12 +276,12 @@ def detect_pmkid(frames) -> set[str]:
 
 
 def count_80211_disconnects(frames) -> dict[tuple[str, str], int]:
-    """Count 802.11 management subtype 12 frames per (bssid, client)."""
+    """Count 802.11 deauth (subtype 12) and disassoc (subtype 10) per (bssid, client)."""
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for f in frames:
         try:
             d = f.getlayer(Dot11)
-            if d is None or d.type != 0 or d.subtype != 12:
+            if d is None or d.type != 0 or d.subtype not in (10, 12):
                 continue
             bssid = d.addr3.lower()
             client = d.addr1.lower()
@@ -233,6 +289,74 @@ def count_80211_disconnects(frames) -> dict[tuple[str, str], int]:
             continue
         counts[(bssid, client)] += 1
     return dict(counts)
+
+
+def detect_wpa3_transition(frames) -> set[str]:
+    """Return BSSIDs advertising WPA3/WPA2 transition mode (SAE + PSK AKMs)."""
+    out: set[str] = set()
+    for f in frames:
+        if not (f.haslayer(Dot11Beacon) or f.haslayer(Dot11ProbeResp)):
+            continue
+        try:
+            bssid = f[Dot11].addr3.lower()
+        except Exception:
+            continue
+        if bssid and _is_transition(_rsn_akm_set_of(f)):
+            out.add(bssid)
+    return out
+
+
+def _eap_from_frame(f: Any) -> tuple[int, int] | None:
+    """Return (eap_code, eap_type) for an EAPOL EAP-Packet frame, else None."""
+    try:
+        eapol = bytes(f[EAPOL])
+    except Exception:
+        return None
+    # EAPOL header: version(1) type(1) length(2); type 0 == EAP-Packet.
+    if len(eapol) < 5 or eapol[1] != 0:
+        return None
+    eap = eapol[4:]
+    if len(eap) < 5:
+        return None
+    return eap[0], eap[4]  # code, type
+
+
+def detect_eap(frames) -> dict[str, dict[str, Any]]:
+    """Map BSSID -> {"methods": set[int], "identities": set[str]} from EAP frames."""
+    out: dict[str, dict[str, Any]] = {}
+    for f in frames:
+        if not f.haslayer(EAPOL):
+            continue
+        parsed = _eap_from_frame(f)
+        if parsed is None:
+            continue
+        code, etype = parsed
+        if code not in (1, 2):  # only Request/Response carry a method type
+            continue
+        try:
+            bssid = f.getlayer(Dot11).addr3.lower()
+        except Exception:
+            continue
+        entry = out.setdefault(bssid, {"methods": set(), "identities": set()})
+        entry["methods"].add(etype)
+        if etype == 1 and code == 2:  # EAP-Response/Identity (cleartext username)
+            eapol = bytes(f[EAPOL])
+            ident = eapol[9:].split(b"\x00", 1)[0].decode(errors="ignore").strip()
+            if ident:
+                entry["identities"].add(ident)
+    return out
+
+
+def collect_probe_ssids(frames) -> set[str]:
+    """Return the set of directed (non-wildcard) SSIDs seen in probe requests."""
+    out: set[str] = set()
+    for f in frames:
+        if not f.haslayer(Dot11ProbeReq):
+            continue
+        ssid = _ssid_of(f)
+        if ssid:
+            out.add(ssid)
+    return out
 
 
 def _findings_for(ap: AccessPoint) -> list[Finding]:
@@ -284,20 +408,78 @@ def _findings_for(ap: AccessPoint) -> list[Finding]:
     return out
 
 
+def _eap_findings(info: dict[str, Any]) -> list[Finding]:
+    """Build findings from one BSSID's EAP methods and leaked identities."""
+    out: list[Finding] = []
+    methods = sorted(info.get("methods") or set())
+    identities = sorted(info.get("identities") or set())
+    if methods:
+        named = ", ".join(_EAP_NAMES.get(m, f"type {m}") for m in methods if m != 1)
+        if named:
+            out.append(
+                Finding(
+                    "ENTERPRISE_EAP",
+                    "info",
+                    0.9,
+                    f"802.1X/EAP methods observed: {named}",
+                    "Allow only strong EAP (e.g. EAP-TLS) with server-certificate validation.",
+                )
+            )
+    weak = [_EAP_NAMES.get(m, str(m)) for m in methods if m in _WEAK_EAP]
+    if weak:
+        out.append(
+            Finding(
+                "WEAK_EAP",
+                "high",
+                0.9,
+                f"Weak EAP method(s) offered: {', '.join(weak)}",
+                "Disable MD5/LEAP/GTC; require EAP-TLS or PEAP/TTLS with strong inner auth.",
+            )
+        )
+    if identities:
+        shown = ", ".join(identities[:5])
+        out.append(
+            Finding(
+                "EAP_IDENTITY_LEAK",
+                "medium",
+                0.8,
+                f"EAP identities sent in the clear: {shown}",
+                "Use anonymous outer identities to avoid leaking usernames/domains.",
+            )
+        )
+    return out
+
+
 def build_assessments(
     aps: dict[str, AccessPoint],
     handshakes: set[str],
     pmkids: set[str],
     per_bssid_disconnects: dict[str, int],
+    transition: set[str] | None = None,
+    eap: dict[str, dict[str, Any]] | None = None,
 ) -> list[TargetAssessment]:
     """Assemble TargetAssessment objects from inventory + detection results.
 
     Shared by the batch (:func:`analyze_frames`) and streaming
     (``LiveAnalyzer``) paths so both produce identical findings.
     """
+    transition = transition or set()
+    eap = eap or {}
     assessments: list[TargetAssessment] = []
     for bssid, ap in aps.items():
         t = TargetAssessment(ap=ap, findings=_findings_for(ap))
+        if bssid in transition:
+            t.findings.append(
+                Finding(
+                    "WPA3_DOWNGRADE_POSSIBLE",
+                    "high",
+                    0.9,
+                    "AP advertises WPA3/WPA2 transition mode (SAE + PSK)",
+                    "Disable transition mode; run WPA3-only so clients cannot be forced to WPA2.",
+                )
+            )
+        if bssid in eap:
+            t.findings.extend(_eap_findings(eap[bssid]))
         if bssid in handshakes:
             t.handshake_captured = True
             t.findings.append(
@@ -327,12 +509,18 @@ def build_assessments(
                     "DISCONNECT_FLOOD",
                     "medium",
                     0.7,
-                    f"{getattr(t, _DISCONNECT_FIELD)} disconnect frames observed",
-                    "Enable PMF; investigate the source of disconnect frames.",
+                    f"{getattr(t, _DISCONNECT_FIELD)} deauth/disassoc frames observed",
+                    "Enable PMF; investigate the source of the disconnect frames.",
                 )
             )
         assessments.append(t)
     return assessments
+
+
+def _evil_twin_ssids(aps: dict[str, AccessPoint], probed: set[str]) -> list[str]:
+    """SSIDs that clients probe for but that no AP in range beacons (evil-twin bait)."""
+    beaconed = {ap.ssid for ap in aps.values() if ap.ssid and ap.ssid != "<hidden>"}
+    return sorted(probed - beaconed)
 
 
 def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
@@ -340,13 +528,18 @@ def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
     aps = extract_aps(frames)
     handshakes = detect_handshakes(frames)
     pmkids = detect_pmkid(frames)
+    transition = detect_wpa3_transition(frames)
+    eap = detect_eap(frames)
+    probed = collect_probe_ssids(frames)
     disconnect_counts = count_80211_disconnects(frames)
 
     per_bssid_disconnects: dict[str, int] = defaultdict(int)
     for (bssid, _client), n in disconnect_counts.items():
         per_bssid_disconnects[bssid] += n
 
-    assessments = build_assessments(aps, handshakes, pmkids, dict(per_bssid_disconnects))
+    assessments = build_assessments(
+        aps, handshakes, pmkids, dict(per_bssid_disconnects), transition, eap
+    )
 
     scan_type, scan_evidence = classify_scan(frames)
     meta = {
@@ -356,6 +549,9 @@ def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
         "aps_total": len(aps),
         "handshake_bssids": sorted(handshakes),
         "pmkid_bssids": sorted(pmkids),
+        "transition_bssids": sorted(transition),
+        "probed_ssids": sorted(probed),
+        "evil_twin_ssids": _evil_twin_ssids(aps, probed),
     }
     return assessments, meta
 

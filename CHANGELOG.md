@@ -7,6 +7,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **More passive detections**, all from the same 802.11 capture:
+  - WPA3/WPA2 **transition mode** (SAE + PSK advertised) → `WPA3_DOWNGRADE_POSSIBLE`,
+    and the advisor now recommends a single-client downgrade deauth for it.
+  - **Enterprise EAP** insight: methods offered (`ENTERPRISE_EAP`), weak methods such
+    as MD5/LEAP/GTC (`WEAK_EAP`), and cleartext identity leaks (`EAP_IDENTITY_LEAK`).
+  - **Disassociation** frames (subtype 10) now count toward the disconnect-flood
+    finding alongside deauth (subtype 12).
+  - **Probe-request / evil-twin** intel: the SSIDs clients search for, and which of
+    them no AP in range beacons (evil-twin bait), in the report and the CLI.
+  - Encryption labelling now picks the strongest AKM, so a transition BSSID is
+    reported as WPA3 rather than being mistaken for WPA2.
 - **Live capture mode** (`wifiaudit live`): passively sniff a monitor-mode
   interface and run the full detection pipeline in real time, with a table that
   refreshes as frames arrive. Supports fixed-channel or `--hop` channel sweeping,

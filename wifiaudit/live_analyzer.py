@@ -22,8 +22,12 @@ from wifiaudit.models import AccessPoint, TargetAssessment
 from wifiaudit.pcap_analyzer import (
     _channel_of,
     _classify_eapol_msg,
+    _eap_from_frame,
+    _evil_twin_ssids,
     _has_wps,
+    _is_transition,
     _rank,
+    _rsn_akm_set_of,
     _rsn_info,
     _ssid_of,
     build_assessments,
@@ -40,6 +44,8 @@ class LiveAnalyzer:
         self.aps: dict[str, AccessPoint] = {}
         self._eapol: dict[tuple[str, str], set[int]] = defaultdict(set)
         self._pmkids: set[str] = set()
+        self._transition: set[str] = set()
+        self._eap: dict[str, dict[str, Any]] = {}
         self._disconnects: dict[str, int] = defaultdict(int)
         self._frames = 0
         # scan-classification counters
@@ -72,6 +78,7 @@ class LiveAnalyzer:
                 self._wildcard += 1
         if f.haslayer(EAPOL):
             self._update_eapol(f)
+            self._update_eap(f)
         self._update_disconnect(f)
 
     def _update_ap(self, f: Any) -> None:
@@ -91,6 +98,8 @@ class LiveAnalyzer:
             ap.encryption = enc
         ap.pmf_enabled = ap.pmf_enabled or pmf
         ap.wps_enabled = ap.wps_enabled or _has_wps(f)
+        if _is_transition(_rsn_akm_set_of(f)):
+            self._transition.add(bssid)
 
     def _update_eapol(self, f: Any) -> None:
         try:
@@ -112,10 +121,28 @@ class LiveAnalyzer:
         client = addr1 if msg in (1, 3) else addr2
         self._eapol[(bssid, client)].add(msg)
 
+    def _update_eap(self, f: Any) -> None:
+        parsed = _eap_from_frame(f)
+        if parsed is None:
+            return
+        code, etype = parsed
+        if code not in (1, 2):
+            return
+        try:
+            bssid = f.getlayer(Dot11).addr3.lower()
+        except Exception:
+            return
+        entry = self._eap.setdefault(bssid, {"methods": set(), "identities": set()})
+        entry["methods"].add(etype)
+        if etype == 1 and code == 2:
+            ident = bytes(f[EAPOL])[9:].split(b"\x00", 1)[0].decode(errors="ignore").strip()
+            if ident:
+                entry["identities"].add(ident)
+
     def _update_disconnect(self, f: Any) -> None:
         try:
             d = f.getlayer(Dot11)
-            if d is None or d.type != 0 or d.subtype != 12:
+            if d is None or d.type != 0 or d.subtype not in (10, 12):
                 return
             bssid = d.addr3.lower()
         except Exception:
@@ -133,7 +160,12 @@ class LiveAnalyzer:
         """Return (assessments, meta) for the frames seen so far."""
         handshakes = self._complete_handshakes()
         assessments = build_assessments(
-            self.aps, handshakes, set(self._pmkids), dict(self._disconnects)
+            self.aps,
+            handshakes,
+            set(self._pmkids),
+            dict(self._disconnects),
+            set(self._transition),
+            self._eap,
         )
         channel_spread = len([c for c, n in self._channels.items() if n >= 3])
         scan_type, evidence = classify_counts(
@@ -143,6 +175,7 @@ class LiveAnalyzer:
             channel_spread,
             sum(self._channels.values()),
         )
+        probed = set(self._targeted)
         meta = {
             "scan_type": scan_type.value,
             "scan_evidence": evidence,
@@ -150,5 +183,8 @@ class LiveAnalyzer:
             "aps_total": len(self.aps),
             "handshake_bssids": sorted(handshakes),
             "pmkid_bssids": sorted(self._pmkids),
+            "transition_bssids": sorted(self._transition),
+            "probed_ssids": sorted(probed),
+            "evil_twin_ssids": _evil_twin_ssids(self.aps, probed),
         }
         return assessments, meta

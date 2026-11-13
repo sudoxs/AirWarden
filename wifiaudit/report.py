@@ -97,6 +97,20 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <p>None.</p>
 {% endif %}
 
+<h2>Probe requests &amp; evil-twin opportunities</h2>
+<p class="caption">SSIDs clients actively search for. Those not beaconed by any AP in range are
+evil-twin bait — a rogue AP with that name could lure the client.</p>
+{% if probed_ssids %}
+<p><strong>Probed SSIDs:</strong> {{ probed_ssids | join(", ") }}</p>
+{% if evil_twin_ssids %}
+<p><strong>Evil-twin bait (not in range):</strong> {{ evil_twin_ssids | join(", ") }}</p>
+{% else %}
+<p>No evil-twin bait: every probed SSID is beaconed in range.</p>
+{% endif %}
+{% else %}
+<p>None.</p>
+{% endif %}
+
 <h2>Active follow-up recommendations</h2>
 <p class="caption">Authorized engagements only — each item describes a single gated,
 single-target action and what it would reveal. Nothing here is performed automatically.</p>
@@ -302,6 +316,8 @@ def to_html(
         rows=rows,
         follow_up=follow_up,
         active_rows=active_rows,
+        probed_ssids=list(meta.get("probed_ssids") or []),
+        evil_twin_ssids=list(meta.get("evil_twin_ssids") or []),
         footer=FOOTER,
     )
     _ensure_parent(path).write_text(html, encoding="utf-8")

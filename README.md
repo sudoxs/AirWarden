@@ -8,7 +8,9 @@ engagements. It:
 - parses pcap/pcapng captures (passive, default mode),
 - classifies the observed scan type (general / targeted / passive-only),
 - inventories access points (encryption, WPS, PMF, clients),
-- detects captured key material (4-way handshakes, PMKIDs) and disconnect floods,
+- detects captured key material (4-way handshakes, PMKIDs) and deauth/disassoc floods,
+- flags Enterprise EAP methods and cleartext identity leaks, WPA3/WPA2 transition
+  (downgrade) mode, and evil-twin bait (SSIDs clients probe for that no AP beacons),
 - scores per-AP risk and writes JSON, CSV, and HTML reports,
 - for each target, **describes** the single authorized follow-up action that would
   reveal the most (clientless PMKID request, or a single-client targeted deauth on
