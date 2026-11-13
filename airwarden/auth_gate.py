@@ -14,8 +14,8 @@ class AuthorizationError(RuntimeError):
 
 
 class AuthorizationGate:
-    ENV_FLAG = "WIFIAUDIT_AUTHORIZED"
-    SCOPE_ENV = "WIFIAUDIT_SCOPE_FILE"
+    ENV_FLAG = "AIRWARDEN_AUTHORIZED"
+    SCOPE_ENV = "AIRWARDEN_SCOPE_FILE"
     DEFAULT_SCOPE = Path("scope.json")
 
     def __init__(self, scope_path: str | Path | None = None) -> None:

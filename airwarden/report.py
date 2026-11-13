@@ -11,11 +11,11 @@ from typing import Any
 
 from jinja2 import Environment, select_autoescape
 
-from wifiaudit.advisor import has_active_suggestion, recommend_active_step
-from wifiaudit.config import redact_mac
-from wifiaudit.exposure import LEAK_KINDS, classify_exposures, is_leak
-from wifiaudit.models import Encryption, Finding, TargetAssessment
-from wifiaudit.state import POTENTIAL, finding_state
+from airwarden.advisor import has_active_suggestion, recommend_active_step
+from airwarden.config import redact_mac
+from airwarden.exposure import LEAK_KINDS, classify_exposures, is_leak
+from airwarden.models import Encryption, Finding, TargetAssessment
+from airwarden.state import POTENTIAL, finding_state
 
 FOOTER = "Authorized engagement only. Active actions require written authorization."
 
@@ -41,7 +41,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>wifiaudit report</title>
+<title>AirWarden report</title>
 <style>
   body { font-family: system-ui, sans-serif; margin: 2rem; color: #1a1a1a; }
   h1, h2 { margin-bottom: .4rem; }
@@ -56,7 +56,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>wifiaudit report</h1>
+<h1>AirWarden report</h1>
 
 <h2>Executive summary</h2>
 <table class="summary">

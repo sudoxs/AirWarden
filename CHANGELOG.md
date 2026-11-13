@@ -1,13 +1,13 @@
 # Changelog
 
-All notable changes to `wifiaudit` are documented here. The format follows
+All notable changes to `airwarden` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ### Added
-- **Confirmed vs. potential states** (`wifiaudit/state.py`): every finding is labelled
+- **Confirmed vs. potential states** (`airwarden/state.py`): every finding is labelled
   `confirmed` (the network is vulnerable now) or `potential` (vulnerable only if a
   condition/attack is met), with the triggering condition spelled out. New conditional
   findings make the "potential" case explicit per category: `PSK_OFFLINE_IF_CAPTURED`
@@ -15,11 +15,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (Enhanced Open — now detected), and `ENTERPRISE_ROGUE_AP` (802.1X). The report shows a
   "Potential (conditional) vulnerabilities" table and confirmed/potential counts; JSON
   carries `state` and `condition` on each finding.
-- **Exposure / data-leak classification** (`wifiaudit/exposure.py`): every finding is
+- **Exposure / data-leak classification** (`airwarden/exposure.py`): every finding is
   tagged with what leaked (identity, key-material, credential, session cookie,
   plaintext data, or a weakness), where it came from, and how abusable it is. The
   report and CLI show an exposure summary, and JSON carries per-AP `exposures`.
-- **Layer-7 cleartext exposure** (`wifiaudit/http_exposure.py`): on open (or
+- **Layer-7 cleartext exposure** (`airwarden/http_exposure.py`): on open (or
   decrypted) captures, cleartext HTTP is flagged — credential POSTs
   (`HTTP_CREDENTIAL`), session cookies (`HTTP_COOKIE`), and Basic-auth
   (`HTTP_BASIC_AUTH`) — reported by host and field/cookie name. Secret values are
@@ -36,14 +36,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     them no AP in range beacons (evil-twin bait), in the report and the CLI.
   - Encryption labelling now picks the strongest AKM, so a transition BSSID is
     reported as WPA3 rather than being mistaken for WPA2.
-- **Live capture mode** (`wifiaudit live`): passively sniff a monitor-mode
+- **Live capture mode** (`airwarden live`): passively sniff a monitor-mode
   interface and run the full detection pipeline in real time, with a table that
   refreshes as frames arrive. Supports fixed-channel or `--hop` channel sweeping,
   a `--duration` limit, and writing the report and/or the raw pcap on exit. A new
-  streaming `LiveAnalyzer` (`wifiaudit/live_analyzer.py`) shares one detection
+  streaming `LiveAnalyzer` (`airwarden/live_analyzer.py`) shares one detection
   engine with the file path, so a live session and the pcap it writes yield
   identical findings. It only receives frames and never transmits.
-- **Active follow-up advisory** (`wifiaudit/advisor.py`): for each access point,
+- **Active follow-up advisory** (`airwarden/advisor.py`): for each access point,
   `analyze` now describes the single authorized follow-up action that would reveal
   the most information — a clientless PMKID request, or a single-client targeted
   deauth on a named BSSID/channel — with the reason and the authorization it
@@ -61,6 +61,6 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.1.0]
 
 ### Added
-- Initial `wifiaudit` package: passive pcap analysis, scan-type classification,
+- Initial `airwarden` package: passive pcap analysis, scan-type classification,
   per-AP inventory and risk scoring, JSON/CSV/HTML reports, an authorization gate,
   and a gated single-target Bettercap client.

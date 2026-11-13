@@ -4,8 +4,8 @@
 pcap (AP inventory, 4-way-handshake and PMKID tracking, disconnect counts, and
 scan-classification counters) but updates it incrementally as frames arrive from
 a live sniff. :meth:`snapshot` assembles the current findings with the exact same
-helpers the file path uses (:func:`wifiaudit.pcap_analyzer.build_assessments` and
-:func:`wifiaudit.scan_classifier.classify_counts`), so a live capture and the
+helpers the file path uses (:func:`airwarden.pcap_analyzer.build_assessments` and
+:func:`airwarden.scan_classifier.classify_counts`), so a live capture and the
 pcap written from it yield identical results.
 
 It is passive: it only reads frames handed to it and never transmits.
@@ -18,10 +18,10 @@ from typing import Any
 
 from scapy.all import EAPOL, Dot11, Dot11Beacon, Dot11ProbeReq, Dot11ProbeResp
 
-from wifiaudit.http_exposure import _bssid_of as _http_bssid_of
-from wifiaudit.http_exposure import frame_exposures
-from wifiaudit.models import AccessPoint, Finding, TargetAssessment
-from wifiaudit.pcap_analyzer import (
+from airwarden.http_exposure import _bssid_of as _http_bssid_of
+from airwarden.http_exposure import frame_exposures
+from airwarden.models import AccessPoint, Finding, TargetAssessment
+from airwarden.pcap_analyzer import (
     _OWE_AKM,
     _channel_of,
     _classify_eapol_msg,
@@ -35,7 +35,7 @@ from wifiaudit.pcap_analyzer import (
     _ssid_of,
     build_assessments,
 )
-from wifiaudit.scan_classifier import classify_counts
+from airwarden.scan_classifier import classify_counts
 
 _PMKID_KDE = b"\xdd\x14\x00\x0f\xac\x04"
 

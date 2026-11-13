@@ -10,9 +10,9 @@ from scapy.all import (
     RadioTap,
 )
 
-from wifiaudit.live_analyzer import LiveAnalyzer
-from wifiaudit.models import Encryption
-from wifiaudit.pcap_analyzer import analyze_frames
+from airwarden.live_analyzer import LiveAnalyzer
+from airwarden.models import Encryption
+from airwarden.pcap_analyzer import analyze_frames
 
 _RSN_WPA2 = (
     b"\x01\x00\x00\x0f\xac\x04"  # group cipher

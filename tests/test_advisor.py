@@ -1,15 +1,15 @@
-"""Tests for wifiaudit.advisor (pure logic; no radio, no network)."""
+"""Tests for airwarden.advisor (pure logic; no radio, no network)."""
 
 from __future__ import annotations
 
-from wifiaudit.advisor import (
+from airwarden.advisor import (
     ACTION_CONFIG,
     ACTION_NONE,
     ACTION_PMKID,
     has_active_suggestion,
     recommend_active_step,
 )
-from wifiaudit.models import AccessPoint, Encryption, TargetAssessment
+from airwarden.models import AccessPoint, Encryption, TargetAssessment
 
 
 def _t(enc: Encryption, **kw) -> TargetAssessment:
@@ -27,7 +27,7 @@ def test_wpa2_no_material_pmf_off_recommends_pmkid_and_names_deauth() -> None:
     assert rec.channel == 6
     assert "channel 6" in rec.yields
     assert "deauth" in rec.yields.lower()  # escalation is named explicitly
-    assert "WIFIAUDIT_AUTHORIZED=1" in rec.authorization_note
+    assert "AIRWARDEN_AUTHORIZED=1" in rec.authorization_note
     assert has_active_suggestion(rec)
 
 

@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, fields
 from typing import Any
 
-ENV_PREFIX = "WIFIAUDIT_"
+ENV_PREFIX = "AIRWARDEN_"
 
 _TRUE = frozenset({"1", "true", "yes", "on"})
 _FALSE = frozenset({"0", "false", "no", "off"})
@@ -16,7 +16,7 @@ _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}([:-])(?:[0-9A-Fa-f]{2}\1){4}[0-9A-Fa-f]{2
 
 @dataclass
 class Settings:
-    """All runtime settings for a wifiaudit run."""
+    """All runtime settings for a airwarden run."""
 
     pcap_path: str
     output_prefix: str = "report"
@@ -38,10 +38,10 @@ def _parse_bool(name: str, raw: str) -> bool:
 
 
 def load_settings(**overrides: Any) -> Settings:
-    """Build ``Settings`` from defaults, then ``WIFIAUDIT_*`` env vars, then overrides.
+    """Build ``Settings`` from defaults, then ``AIRWARDEN_*`` env vars, then overrides.
 
     Precedence (lowest to highest): dataclass defaults < environment < ``overrides``.
-    Each field ``foo`` is read from env var ``WIFIAUDIT_FOO``. Overrides whose value is
+    Each field ``foo`` is read from env var ``AIRWARDEN_FOO``. Overrides whose value is
     ``None`` are ignored so callers can pass through unset CLI options. ``pcap_path``
     defaults to ``""`` when not provided (e.g. for the ``active`` command).
 

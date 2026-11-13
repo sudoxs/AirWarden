@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
-from wifiaudit.models import ScanType
+from airwarden.models import ScanType
 
 
 def _ssid_of(frame: Any) -> str:

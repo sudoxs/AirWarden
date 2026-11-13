@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from wifiaudit.models import Finding
+from airwarden.models import Finding
 
 _CRED_FIELDS = ("password", "passwd", "pass", "pwd", "username", "user", "email", "login")
 _METHODS = ("GET ", "POST ", "PUT ", "HEAD ", "DELETE ", "OPTIONS ")

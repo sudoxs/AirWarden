@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from scapy.all import Dot11, Dot11Beacon, Dot11Elt, RadioTap
 
-from wifiaudit.live_analyzer import LiveAnalyzer
-from wifiaudit.models import Finding
-from wifiaudit.pcap_analyzer import analyze_frames
-from wifiaudit.state import CONFIRMED, POTENTIAL, finding_state, is_potential
+from airwarden.live_analyzer import LiveAnalyzer
+from airwarden.models import Finding
+from airwarden.pcap_analyzer import analyze_frames
+from airwarden.state import CONFIRMED, POTENTIAL, finding_state, is_potential
 
 BCAST = "ff:ff:ff:ff:ff:ff"
 WPA2 = "aa:bb:cc:00:00:01"

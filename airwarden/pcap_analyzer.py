@@ -16,9 +16,9 @@ from scapy.all import (
     rdpcap,
 )
 
-from wifiaudit.http_exposure import detect_http_exposure
-from wifiaudit.models import AccessPoint, Encryption, Finding, TargetAssessment
-from wifiaudit.scan_classifier import classify_scan
+from airwarden.http_exposure import detect_http_exposure
+from airwarden.models import AccessPoint, Encryption, Finding, TargetAssessment
+from airwarden.scan_classifier import classify_scan
 
 _RSN_IE_ID = 48
 _VENDOR_IE_ID = 221

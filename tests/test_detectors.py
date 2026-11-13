@@ -12,10 +12,10 @@ from scapy.all import (
     Raw,
 )
 
-from wifiaudit.advisor import ACTION_DEAUTH, recommend_active_step
-from wifiaudit.live_analyzer import LiveAnalyzer
-from wifiaudit.models import Encryption
-from wifiaudit.pcap_analyzer import (
+from airwarden.advisor import ACTION_DEAUTH, recommend_active_step
+from airwarden.live_analyzer import LiveAnalyzer
+from airwarden.models import Encryption
+from airwarden.pcap_analyzer import (
     analyze_frames,
     collect_probe_ssids,
     count_80211_disconnects,

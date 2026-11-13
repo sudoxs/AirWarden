@@ -1,4 +1,4 @@
-"""Tests for wifiaudit.cli. Reserved stub modules are replaced with fakes."""
+"""Tests for airwarden.cli. Reserved stub modules are replaced with fakes."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ import pytest
 from scapy.all import Dot11, Dot11Beacon, Dot11Elt, RadioTap
 from typer.testing import CliRunner
 
-import wifiaudit.cli as cli
-from wifiaudit.models import AccessPoint, Encryption, Finding, TargetAssessment
+import airwarden.cli as cli
+from airwarden.models import AccessPoint, Encryption, Finding, TargetAssessment
 
 runner = CliRunner()
-ENV = {"COLUMNS": "200", "WIFIAUDIT_REDACT_MACS": None, "WIFIAUDIT_AUTHORIZED": None}
+ENV = {"COLUMNS": "200", "AIRWARDEN_REDACT_MACS": None, "AIRWARDEN_AUTHORIZED": None}
 
 
 def _fake_analyze(path: str) -> tuple[list[TargetAssessment], dict]:
@@ -56,7 +56,7 @@ def test_help_lists_commands() -> None:
 
 
 def test_version_flag() -> None:
-    from wifiaudit import __version__
+    from airwarden import __version__
 
     result = runner.invoke(cli.app, ["--version"], env=ENV)
     assert result.exit_code == 0
@@ -118,7 +118,7 @@ def test_active_requires_authorization_flag(monkeypatch: pytest.MonkeyPatch) -> 
 def test_active_stub_exits_3(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "AuthorizationGate", _raise_stub)
     result = runner.invoke(
-        cli.app, ["active", "-i", "wlan0mon"], env={**ENV, "WIFIAUDIT_AUTHORIZED": "1"}
+        cli.app, ["active", "-i", "wlan0mon"], env={**ENV, "AIRWARDEN_AUTHORIZED": "1"}
     )
     assert result.exit_code == 3
     assert "stub" in result.output
@@ -170,7 +170,7 @@ def fake_active(monkeypatch: pytest.MonkeyPatch) -> type[_FakeClient]:
 
 def test_active_lists_aps_without_actions(fake_active) -> None:
     result = runner.invoke(
-        cli.app, ["active", "-i", "wlan1mon"], env={**ENV, "WIFIAUDIT_AUTHORIZED": "1"}
+        cli.app, ["active", "-i", "wlan1mon"], env={**ENV, "AIRWARDEN_AUTHORIZED": "1"}
     )
     assert result.exit_code == 0, result.output
     assert "LabAP" in result.output
@@ -184,7 +184,7 @@ def test_active_pmkid_called_once(fake_active) -> None:
     result = runner.invoke(
         cli.app,
         ["active", "-i", "wlan1mon", "--pmkid", "aa:bb:cc:dd:ee:01"],
-        env={**ENV, "WIFIAUDIT_AUTHORIZED": "1"},
+        env={**ENV, "AIRWARDEN_AUTHORIZED": "1"},
     )
     assert result.exit_code == 0, result.output
     (client,) = fake_active.instances
@@ -222,7 +222,7 @@ def test_live_runs_and_reports(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "_LIVE_POLL_SECONDS", 0.001)
     result = runner.invoke(cli.app, ["live", "-i", "wlan0mon", "-t", "0"], env=ENV)
     assert result.exit_code == 0, result.output
-    assert "wifiaudit live" in result.output
+    assert "airwarden live" in result.output
     assert "Observed 1 AP(s)" in result.output
 
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from scapy.all import Dot11, Dot11Beacon, Dot11Elt, RadioTap, Raw
 
-from wifiaudit.http_exposure import detect_http_exposure, frame_exposures
-from wifiaudit.live_analyzer import LiveAnalyzer
-from wifiaudit.pcap_analyzer import analyze_frames
+from airwarden.http_exposure import detect_http_exposure, frame_exposures
+from airwarden.live_analyzer import LiveAnalyzer
+from airwarden.pcap_analyzer import analyze_frames
 
 OPEN_BSSID = "aa:bb:cc:00:00:09"
 CLIENT = "11:22:33:44:55:66"

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from wifiaudit.models import Finding
+from airwarden.models import Finding
 
 # what-leaked categories, ordered from "actual secret/data" to "weakness only".
 LEAK_KINDS = (

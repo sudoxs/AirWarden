@@ -1,4 +1,4 @@
-"""Core data model for wifiaudit (RESERVED — integration contract).
+"""Core data model for airwarden (RESERVED — integration contract).
 
 These dataclasses and enums are the locked interface shared by every module.
 Do not add, remove, or rename fields.

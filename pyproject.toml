@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wifiaudit"
+name = "airwarden"
 version = "0.1.0"
 description = "Defensive WiFi audit tool for authorized penetration-testing engagements."
 readme = "README.md"
@@ -23,10 +23,10 @@ dev = [
 ]
 
 [project.scripts]
-wifiaudit = "wifiaudit.cli:app"
+airwarden = "airwarden.cli:app"
 
 [tool.setuptools]
-packages = ["wifiaudit"]
+packages = ["airwarden"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -41,4 +41,4 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.per-file-ignores]
 # models.py is a locked integration contract: keep `(str, Enum)` exactly as specified.
-"wifiaudit/models.py" = ["UP042"]
+"airwarden/models.py" = ["UP042"]

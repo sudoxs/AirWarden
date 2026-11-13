@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from wifiaudit.models import Encryption, TargetAssessment
+from airwarden.models import Encryption, TargetAssessment
 
 _ENCRYPTION_STRENGTH = {
     Encryption.WPA3: 100,

@@ -7,7 +7,7 @@ from typing import Any
 
 import requests
 
-from wifiaudit.auth_gate import AuthorizationGate
+from airwarden.auth_gate import AuthorizationGate
 
 
 class BettercapClient:

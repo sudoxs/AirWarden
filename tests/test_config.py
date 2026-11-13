@@ -1,4 +1,4 @@
-"""Tests for wifiaudit.config."""
+"""Tests for airwarden.config."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import os
 
 import pytest
 
-from wifiaudit.config import Settings, load_settings, redact_mac
+from airwarden.config import Settings, load_settings, redact_mac
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in list(os.environ):
-        if key.startswith("WIFIAUDIT_"):
+        if key.startswith("AIRWARDEN_"):
             monkeypatch.delenv(key)
 
 
@@ -24,9 +24,9 @@ def test_defaults() -> None:
 
 
 def test_env_overrides_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("WIFIAUDIT_BETTERCAP_URL", "http://10.0.0.5:8081")
-    monkeypatch.setenv("WIFIAUDIT_REDACT_MACS", "false")
-    monkeypatch.setenv("WIFIAUDIT_PCAP_PATH", "env.pcap")
+    monkeypatch.setenv("AIRWARDEN_BETTERCAP_URL", "http://10.0.0.5:8081")
+    monkeypatch.setenv("AIRWARDEN_REDACT_MACS", "false")
+    monkeypatch.setenv("AIRWARDEN_PCAP_PATH", "env.pcap")
     s = load_settings()
     assert s.bettercap_url == "http://10.0.0.5:8081"
     assert s.redact_macs is False
@@ -34,15 +34,15 @@ def test_env_overrides_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_overrides_beat_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("WIFIAUDIT_BETTERCAP_URL", "http://env:8081")
-    monkeypatch.setenv("WIFIAUDIT_REDACT_MACS", "0")
+    monkeypatch.setenv("AIRWARDEN_BETTERCAP_URL", "http://env:8081")
+    monkeypatch.setenv("AIRWARDEN_REDACT_MACS", "0")
     s = load_settings(bettercap_url="http://override:8081", redact_macs=True)
     assert s.bettercap_url == "http://override:8081"
     assert s.redact_macs is True
 
 
 def test_none_override_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("WIFIAUDIT_OUTPUT_PREFIX", "from_env")
+    monkeypatch.setenv("AIRWARDEN_OUTPUT_PREFIX", "from_env")
     assert load_settings(output_prefix=None).output_prefix == "from_env"
 
 
@@ -52,7 +52,7 @@ def test_unknown_override_rejected() -> None:
 
 
 def test_bad_bool_env_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("WIFIAUDIT_REDACT_MACS", "maybe")
+    monkeypatch.setenv("AIRWARDEN_REDACT_MACS", "maybe")
     with pytest.raises(ValueError):
         load_settings()
 

@@ -1,4 +1,4 @@
-"""Tests for wifiaudit.report (dataclasses are constructed directly; no stubs called)."""
+"""Tests for airwarden.report (dataclasses are constructed directly; no stubs called)."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from wifiaudit.models import AccessPoint, Encryption, Finding, ScanType, TargetAssessment
-from wifiaudit.report import FOOTER, to_csv, to_html, to_json
+from airwarden.models import AccessPoint, Encryption, Finding, ScanType, TargetAssessment
+from airwarden.report import FOOTER, to_csv, to_html, to_json
 
 RAW_MACS = ("aa:bb:cc:dd:ee:01", "11:22:33:44:55:66", "de:ad:be:ef:00:02", "0a:0b:0c:0d:0e:03")
 

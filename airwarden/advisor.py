@@ -18,9 +18,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from wifiaudit.models import Encryption, TargetAssessment
+from airwarden.models import Encryption, TargetAssessment
 
-# Action identifiers mirror wifiaudit.bettercap_client / the scope 'active_actions' list.
+# Action identifiers mirror airwarden.bettercap_client / the scope 'active_actions' list.
 ACTION_PMKID = "pmkid_capture"
 ACTION_DEAUTH = "deauth_targeted"
 ACTION_CONFIG = "config_review"
@@ -45,7 +45,7 @@ def _auth_note(action: str) -> str:
     if action in (ACTION_NONE, ACTION_CONFIG):
         return ""
     return (
-        f"Authorized only: needs WIFIAUDIT_AUTHORIZED=1, this BSSID in scope "
+        f"Authorized only: needs AIRWARDEN_AUTHORIZED=1, this BSSID in scope "
         f"'targets', and '{action}' in 'active_actions'. One single-client action, "
         f"with typed human confirmation."
     )

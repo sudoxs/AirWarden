@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import sys
 
-from wifiaudit.pcap_analyzer import analyze_pcap
-from wifiaudit.report import to_html, to_json
-from wifiaudit.risk_scorer import score_target
+from airwarden.pcap_analyzer import analyze_pcap
+from airwarden.report import to_html, to_json
+from airwarden.risk_scorer import score_target
 
 EXIT_STUB = 3
 
@@ -21,7 +21,7 @@ def run_audit(pcap_path: str, output_prefix: str = "report", redact_macs: bool =
             t.risk_score = score_target(t)
     except NotImplementedError:
         sys.stderr.write(
-            "wifiaudit: analysis modules are stubs in this build — "
+            "airwarden: analysis modules are stubs in this build — "
             "they are replaced at integration time. Nothing was analyzed.\n"
         )
         sys.exit(EXIT_STUB)

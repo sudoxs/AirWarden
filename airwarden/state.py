@@ -12,7 +12,7 @@ and live paths.
 
 from __future__ import annotations
 
-from wifiaudit.models import Finding
+from airwarden.models import Finding
 
 CONFIRMED = "confirmed"
 POTENTIAL = "potential"

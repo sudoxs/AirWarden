@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from wifiaudit.exposure import classify_exposure, classify_exposures, is_leak
-from wifiaudit.models import Finding
+from airwarden.exposure import classify_exposure, classify_exposures, is_leak
+from airwarden.models import Finding
 
 
 def _f(code: str, severity: str = "high") -> Finding:

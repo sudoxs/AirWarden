@@ -16,18 +16,18 @@ from rich.table import Table
 from rich.text import Text
 from scapy.all import AsyncSniffer
 
-from wifiaudit import __version__
-from wifiaudit.advisor import has_active_suggestion, recommend_active_step
-from wifiaudit.auth_gate import AuthorizationError, AuthorizationGate
-from wifiaudit.bettercap_client import BettercapClient
-from wifiaudit.config import load_settings, redact_mac
-from wifiaudit.exposure import classify_exposures, is_leak
-from wifiaudit.live_analyzer import LiveAnalyzer
-from wifiaudit.models import TargetAssessment
-from wifiaudit.pcap_analyzer import analyze_pcap
-from wifiaudit.report import to_html, to_json, top_finding
-from wifiaudit.risk_scorer import score_target
-from wifiaudit.state import is_potential
+from airwarden import __version__
+from airwarden.advisor import has_active_suggestion, recommend_active_step
+from airwarden.auth_gate import AuthorizationError, AuthorizationGate
+from airwarden.bettercap_client import BettercapClient
+from airwarden.config import load_settings, redact_mac
+from airwarden.exposure import classify_exposures, is_leak
+from airwarden.live_analyzer import LiveAnalyzer
+from airwarden.models import TargetAssessment
+from airwarden.pcap_analyzer import analyze_pcap
+from airwarden.report import to_html, to_json, top_finding
+from airwarden.risk_scorer import score_target
+from airwarden.state import is_potential
 
 EXIT_CAPTURE = 1
 EXIT_NOT_AUTHORIZED = 2
@@ -39,7 +39,7 @@ _LIVE_POLL_SECONDS = 1.0
 _HOP_CHANNELS = tuple(range(1, 14))
 
 app = typer.Typer(
-    help="wifiaudit — defensive WiFi audit tool for AUTHORIZED engagements only.",
+    help="AirWarden — defensive WiFi audit tool for AUTHORIZED engagements only.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -67,7 +67,7 @@ def _stub_exit(console: Console, module: str) -> typer.Exit:
 
 def _version_callback(value: bool) -> None:
     if value:
-        _console().print(f"wifiaudit {__version__}")
+        _console().print(f"AirWarden {__version__}")
         raise typer.Exit()
 
 
@@ -77,13 +77,13 @@ def main(
         bool,
         typer.Option(
             "--version",
-            help="Show the wifiaudit version and exit.",
+            help="Show the AirWarden version and exit.",
             callback=_version_callback,
             is_eager=True,
         ),
     ] = False,
 ) -> None:
-    """wifiaudit — defensive WiFi audit tool for AUTHORIZED engagements only."""
+    """AirWarden — defensive WiFi audit tool for AUTHORIZED engagements only."""
 
 
 def _assessment_table(assessments: list[TargetAssessment], redact: bool) -> Table:
@@ -197,7 +197,7 @@ def analyze(
         bool,
         typer.Option(
             "--redact-macs/--no-redact-macs",
-            envvar="WIFIAUDIT_REDACT_MACS",
+            envvar="AIRWARDEN_REDACT_MACS",
             help="Zero the last 3 octets of every MAC in output.",
         ),
     ] = True,
@@ -290,14 +290,14 @@ def active(
     ] = None,
     redact_macs: Annotated[
         bool,
-        typer.Option("--redact-macs/--no-redact-macs", envvar="WIFIAUDIT_REDACT_MACS"),
+        typer.Option("--redact-macs/--no-redact-macs", envvar="AIRWARDEN_REDACT_MACS"),
     ] = True,
 ) -> None:
-    """Gated recon via Bettercap. Requires WIFIAUDIT_AUTHORIZED=1 and a scope file."""
+    """Gated recon via Bettercap. Requires AIRWARDEN_AUTHORIZED=1 and a scope file."""
     console = _console()
-    if os.environ.get("WIFIAUDIT_AUTHORIZED") != "1":
+    if os.environ.get("AIRWARDEN_AUTHORIZED") != "1":
         console.print(
-            "[bold red]Active mode refused.[/] Set WIFIAUDIT_AUTHORIZED=1 only if you hold "
+            "[bold red]Active mode refused.[/] Set AIRWARDEN_AUTHORIZED=1 only if you hold "
             "written authorization for this engagement and a valid scope file."
         )
         raise typer.Exit(EXIT_NOT_AUTHORIZED)
@@ -365,14 +365,14 @@ def live(
     ] = None,
     redact_macs: Annotated[
         bool,
-        typer.Option("--redact-macs/--no-redact-macs", envvar="WIFIAUDIT_REDACT_MACS"),
+        typer.Option("--redact-macs/--no-redact-macs", envvar="AIRWARDEN_REDACT_MACS"),
     ] = True,
 ) -> None:
     """Sniff a monitor-mode interface and detect in real time (passive; nothing is sent)."""
     console = _console()
     settings = load_settings(interface=interface, redact_macs=redact_macs)
     console.print(
-        "[bold]wifiaudit live[/] — passive monitoring, authorized engagement only. "
+        "[bold]airwarden live[/] — passive monitoring, authorized engagement only. "
         "Frames are received only; nothing is transmitted."
     )
 

@@ -1,8 +1,8 @@
-# AirWarden — `wifiaudit`
+# AirWarden
 
 ## Overview
 
-`wifiaudit` is a defensive WiFi audit tool for **authorized** penetration-testing
+AirWarden is a defensive WiFi audit tool for **authorized** penetration-testing
 engagements. It:
 
 - parses pcap/pcapng captures (passive, default mode),
@@ -63,7 +63,7 @@ Before any use beyond reading your own captures, you must have:
    | `targets`        | Explicit list of in-scope BSSIDs                          |
    | `active_actions` | Permitted actions, e.g. `pmkid_capture`; a single-client `deauth_targeted` only if the authorization letter names it |
 
-3. The environment flag `WIFIAUDIT_AUTHORIZED=1` set deliberately for the
+3. The environment flag `AIRWARDEN_AUTHORIZED=1` set deliberately for the
    session. Without it, `active` refuses to run (exit code `2`).
 
 Captures and reports contain identifying data. MAC addresses are redacted by
@@ -75,7 +75,7 @@ they are git-ignored.
 
 Requires Python 3.11+.
 
-**As a tool (recommended)** — an isolated, global `wifiaudit` command via
+**As a tool (recommended)** — an isolated, global `airwarden` command via
 [pipx](https://pipx.pypa.io):
 
 ```bash
@@ -85,7 +85,7 @@ pipx install .
 Then run it from anywhere:
 
 ```bash
-wifiaudit --version
+airwarden --version
 ```
 
 **In a virtual environment** — if you prefer a plain venv:
@@ -113,7 +113,7 @@ python make_sample.py
 ```
 
 ```bash
-wifiaudit analyze sample.pcap --output-prefix report
+airwarden analyze sample.pcap --output-prefix report
 ```
 
 Open `report.html` in a browser for the full table, the risk summary, and the
@@ -125,7 +125,7 @@ tooling. That is the entire passive workflow — no radio, no root, nothing sent
 ### `analyze` — passive (default)
 
 ```bash
-wifiaudit analyze capture.pcap --output-prefix report
+airwarden analyze capture.pcap --output-prefix report
 ```
 
 Writes `report.json` and `report.html` and prints a table
@@ -142,7 +142,7 @@ authorization it requires. This is advice only; the `analyze` command never
 transmits anything. Targets whose key material is already captured, open networks,
 and WPA3/Enterprise networks are marked as needing no active step.
 
-Equivalent without installing the script: `python -m wifiaudit.cli analyze capture.pcap`,
+Equivalent without installing the script: `python -m airwarden.cli analyze capture.pcap`,
 or the minimal wrapper `python main.py capture.pcap`.
 
 ### `live` — passive real-time capture (Linux)
@@ -151,7 +151,7 @@ Sniff a monitor-mode interface and run the full detection pipeline as frames
 arrive, refreshing the table live:
 
 ```bash
-sudo wifiaudit live --interface wlan0mon
+sudo airwarden live --interface wlan0mon
 ```
 
 The view shows the scan type, the per-AP table, and the "Active follow-up" table,
@@ -170,32 +170,32 @@ A live session and the pcap it writes produce identical findings — `live` and
 ### `active` — gated, authorized engagements only
 
 ```bash
-WIFIAUDIT_AUTHORIZED=1 wifiaudit active --interface wlan0mon
+AIRWARDEN_AUTHORIZED=1 airwarden active --interface wlan0mon
 ```
 
 Starts Bettercap recon and lists APs. No active action is taken unless
 explicitly requested for a single BSSID:
 
 ```bash
-WIFIAUDIT_AUTHORIZED=1 wifiaudit active --interface wlan0mon --pmkid 00:11:22:33:44:55
+AIRWARDEN_AUTHORIZED=1 airwarden active --interface wlan0mon --pmkid 00:11:22:33:44:55
 ```
 
 The BSSID must be listed in `targets` and the action in `active_actions`.
 
 ### Configuration
 
-Every setting can be supplied as an environment variable prefixed `WIFIAUDIT_`
+Every setting can be supplied as an environment variable prefixed `AIRWARDEN_`
 (CLI options take precedence):
 
 | Variable                   | Default                 |
 | -------------------------- | ----------------------- |
-| `WIFIAUDIT_OUTPUT_PREFIX`  | `report`                |
-| `WIFIAUDIT_REDACT_MACS`    | `true`                  |
-| `WIFIAUDIT_BETTERCAP_URL`  | `http://127.0.0.1:8081` |
-| `WIFIAUDIT_BETTERCAP_USER` | `user`                  |
-| `WIFIAUDIT_BETTERCAP_PASS` | `pass`                  |
-| `WIFIAUDIT_INTERFACE`      | `wlan0mon`              |
-| `WIFIAUDIT_SCOPE_PATH`     | `scope.json`            |
+| `AIRWARDEN_OUTPUT_PREFIX`  | `report`                |
+| `AIRWARDEN_REDACT_MACS`    | `true`                  |
+| `AIRWARDEN_BETTERCAP_URL`  | `http://127.0.0.1:8081` |
+| `AIRWARDEN_BETTERCAP_USER` | `user`                  |
+| `AIRWARDEN_BETTERCAP_PASS` | `pass`                  |
+| `AIRWARDEN_INTERFACE`      | `wlan0mon`              |
+| `AIRWARDEN_SCOPE_PATH`     | `scope.json`            |
 
 ### Exit codes
 
