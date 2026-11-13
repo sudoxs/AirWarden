@@ -1,12 +1,16 @@
 # AirWarden
 
+> Passive-first Wi-Fi vulnerability auditor for **authorized** engagements — it
+> reads a pcap (or sniffs live), inventories every access point, and reports what
+> is vulnerable now, what could become vulnerable, and what has leaked.
+
 ## Overview
 
 AirWarden is a defensive WiFi audit tool for **authorized** penetration-testing
 engagements. It:
 
 - parses pcap/pcapng captures (passive, default mode),
-- classifies the observed scan type (general / targeted / passive-only),
+- classifies the observed scan type (general / targeted / passive-only / unknown),
 - inventories access points (encryption, WPS, PMF, clients),
 - detects captured key material (4-way handshakes, PMKIDs) and deauth/disassoc floods,
 - flags Enterprise EAP methods and cleartext identity leaks, WPA3/WPA2 transition
@@ -116,9 +120,11 @@ python make_sample.py
 airwarden analyze sample.pcap --output-prefix report
 ```
 
-Open `report.html` in a browser for the full table, the risk summary, and the
-"Active follow-up recommendations" section. `report.json` holds the same data for
-tooling. That is the entire passive workflow — no radio, no root, nothing sent.
+Open `report.html` in a browser for the exposure & data-leak summary, the per-AP
+table with risk scores, the confirmed vs. potential (conditional) vulnerabilities,
+the probe-request / evil-twin opportunities, and the "Active follow-up
+recommendations" table. `report.json` holds the same data for tooling. That is the
+entire passive workflow — no radio, no root, nothing sent.
 
 ## Usage
 
@@ -141,6 +147,12 @@ channel to capture a 4-way handshake — plus what that action would yield and t
 authorization it requires. This is advice only; the `analyze` command never
 transmits anything. Targets whose key material is already captured, open networks,
 and WPA3/Enterprise networks are marked as needing no active step.
+
+The console also prints the confirmed-vs-potential issue counts, any evil-twin
+bait (SSIDs clients probe for that no AP beacons), and how many exposures were
+classified. The HTML report breaks each of these out in full, including an
+"Exposure & data-leak summary" and a "Potential (conditional) vulnerabilities"
+table that states the condition under which each one becomes exploitable.
 
 Equivalent without installing the script: `python -m airwarden.cli analyze capture.pcap`,
 or the minimal wrapper `python main.py capture.pcap`.
