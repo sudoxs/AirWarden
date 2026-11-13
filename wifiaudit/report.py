@@ -11,6 +11,7 @@ from typing import Any
 
 from jinja2 import Environment, select_autoescape
 
+from wifiaudit.advisor import has_active_suggestion, recommend_active_step
 from wifiaudit.config import redact_mac
 from wifiaudit.models import Encryption, Finding, TargetAssessment
 
@@ -47,6 +48,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   th { background: #f0f0f0; }
   td.num { text-align: right; }
   .summary td:first-child { font-weight: 600; width: 14rem; }
+  p.caption { font-size: .85rem; color: #555; margin: .2rem 0 .6rem; }
   footer { margin-top: 2rem; font-size: .85rem; color: #555; border-top: 1px solid #ccc;
            padding-top: .5rem; }
 </style>
@@ -91,6 +93,31 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <ul>
   {% for bssid in follow_up %}<li>{{ bssid }}</li>{% endfor %}
 </ul>
+{% else %}
+<p>None.</p>
+{% endif %}
+
+<h2>Active follow-up recommendations</h2>
+<p class="caption">Authorized engagements only — each item describes a single gated,
+single-target action and what it would reveal. Nothing here is performed automatically.</p>
+{% if active_rows %}
+<table>
+  <thead>
+    <tr>
+      <th>BSSID</th><th>CH</th><th>Suggested action</th><th>Priority</th>
+      <th>Why</th><th>What it would reveal</th><th>Authorization</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for a in active_rows %}
+    <tr>
+      <td>{{ a.bssid }}</td><td class="num">{{ a.channel }}</td><td>{{ a.action }}</td>
+      <td>{{ a.priority }}</td><td>{{ a.rationale }}</td><td>{{ a.yields }}</td>
+      <td>{{ a.authorization_note }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
 {% else %}
 <p>None.</p>
 {% endif %}
@@ -158,6 +185,7 @@ def _serialize(t: TargetAssessment, redact: bool) -> dict[str, Any]:
     ap["bssid"] = _mac(ap["bssid"], redact)
     ap["encryption"] = _value(ap["encryption"])
     ap["clients"] = sorted(_mac(c, redact) for c in ap["clients"])
+    data["active_recommendation"] = asdict(recommend_active_step(t))
     return data
 
 
@@ -230,12 +258,26 @@ def to_html(
     bands = {"0-30": 0, "31-60": 0, "61-100": 0}
     rows = []
     follow_up = []
+    active_rows = []
     for t in assessments:
         ap = t.ap
         bssid = _mac(ap.bssid, redact_macs)
         bands[risk_band(t.risk_score)] += 1
         if needs_targeted_follow_up(t):
             follow_up.append(bssid)
+        rec = recommend_active_step(t)
+        if has_active_suggestion(rec):
+            active_rows.append(
+                {
+                    "bssid": bssid,
+                    "channel": _dash(ap.channel),
+                    "action": rec.action,
+                    "priority": rec.priority,
+                    "rationale": rec.rationale,
+                    "yields": rec.yields,
+                    "authorization_note": rec.authorization_note,
+                }
+            )
         rows.append(
             {
                 "bssid": bssid,
@@ -259,6 +301,7 @@ def to_html(
         bands=bands,
         rows=rows,
         follow_up=follow_up,
+        active_rows=active_rows,
         footer=FOOTER,
     )
     _ensure_parent(path).write_text(html, encoding="utf-8")

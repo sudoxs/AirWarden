@@ -171,3 +171,28 @@ def test_to_html_empty(tmp_path: Path) -> None:
     html = out.read_text(encoding="utf-8")
     assert "No access points found." in html
     assert FOOTER in html
+
+
+def test_to_json_includes_active_recommendation(tmp_path: Path, assessments, meta) -> None:
+    out = tmp_path / "r.json"
+    to_json(assessments, meta, str(out))
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    # WPA2, PMF off, no handshake/PMKID -> clientless PMKID request suggested.
+    wpa2 = next(a for a in doc["assessments"] if a["ap"]["bssid"] == "aa:bb:cc:00:00:00")
+    rec = wpa2["active_recommendation"]
+    assert rec["action"] == "pmkid_capture"
+    assert rec["priority"] == "high"
+    # WPA3 with a captured handshake -> no active step.
+    wpa3 = next(a for a in doc["assessments"] if a["ap"]["bssid"] == "0a:0b:0c:00:00:00")
+    assert wpa3["active_recommendation"]["action"] == "none"
+
+
+def test_to_html_active_followup_section(tmp_path: Path, assessments, meta) -> None:
+    out = tmp_path / "r.html"
+    to_html(assessments, meta, str(out))
+    html = out.read_text(encoding="utf-8")
+    assert "Active follow-up recommendations" in html
+    section = html.split("Active follow-up recommendations", 1)[1]
+    assert "aa:bb:cc:00:00:00" in section  # WPA2 target is actionable
+    assert "pmkid_capture" in section
+    assert "0a:0b:0c:00:00:00" not in section  # material already captured, no row

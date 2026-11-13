@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from wifiaudit.advisor import has_active_suggestion, recommend_active_step
 from wifiaudit.auth_gate import AuthorizationError, AuthorizationGate
 from wifiaudit.bettercap_client import BettercapClient
 from wifiaudit.config import load_settings, redact_mac
@@ -70,6 +71,28 @@ def _assessment_table(assessments: list[TargetAssessment], redact: bool) -> Tabl
     return table
 
 
+def _active_followup_table(assessments: list[TargetAssessment], redact: bool) -> Table | None:
+    """Render described active follow-up steps; ``None`` if nothing is suggested."""
+    table = Table(title="Active follow-up (authorized engagements only)")
+    for col in ("BSSID", "CH", "Action", "Pri", "Why / what it reveals"):
+        table.add_column(col, justify="right" if col == "CH" else "left")
+    any_row = False
+    for t in assessments:
+        rec = recommend_active_step(t)
+        if not has_active_suggestion(rec):
+            continue
+        any_row = True
+        ap = t.ap
+        table.add_row(
+            _dash(redact_mac(ap.bssid) if redact else ap.bssid),
+            _dash(rec.channel),
+            rec.action,
+            rec.priority,
+            f"{rec.rationale} {rec.yields}",
+        )
+    return table if any_row else None
+
+
 @app.command()
 def analyze(
     pcap: Annotated[str, typer.Argument(help="Path to a pcap/pcapng capture.")],
@@ -116,6 +139,13 @@ def analyze(
     scan_type = meta.get("scan_type")
     console.print(f"Scan type: [bold]{_dash(getattr(scan_type, 'value', scan_type))}[/]")
     console.print(_assessment_table(assessments, settings.redact_macs))
+
+    active_table = _active_followup_table(assessments, settings.redact_macs)
+    if active_table is not None:
+        console.print(active_table)
+    else:
+        console.print("Active follow-up: none suggested.")
+
     console.print(f"Wrote {json_path} and {html_path}")
 
 

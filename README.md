@@ -8,17 +8,20 @@ engagements. It:
 - parses pcap/pcapng captures (passive, default mode),
 - classifies the observed scan type (general / targeted / passive-only),
 - inventories access points (encryption, WPS, PMF, clients),
-- scores per-AP risk and writes JSON and HTML reports,
+- detects captured key material (4-way handshakes, PMKIDs) and disconnect floods,
+- scores per-AP risk and writes JSON, CSV, and HTML reports,
+- for each target, **describes** the single authorized follow-up action that would
+  reveal the most (clientless PMKID request, or a single-client targeted deauth on
+  a named BSSID/channel to capture a handshake) — advice only, nothing is sent,
 - can perform a small set of **gated** active actions against in-scope BSSIDs only.
 
 Every active action goes through an `AuthorizationGate` that checks a signed-off
 scope file. Default mode is passive/audit.
 
-> **Build status:** this repository is the project skeleton. The analysis,
-> scoring, authorization, and Bettercap modules (`models`, `auth_gate`,
-> `pcap_analyzer`, `scan_classifier`, `risk_scorer`, `bettercap_client`) are
-> stubs that are replaced at integration time. Until then, `analyze` and
-> `active` exit with code `3` and a message explaining that the stub is in place.
+> **Build status:** the analysis, scoring, classification, advisory, and
+> reporting modules are implemented and covered by tests — `analyze` runs a full
+> passive audit today. The active path (`auth_gate`, `bettercap_client`) is wired
+> but needs a reachable Bettercap instance and a signed scope file at run time.
 
 ## Threat model & authorization prerequisites
 
@@ -82,6 +85,15 @@ Writes `report.json` and `report.html` and prints a table
 sorted by risk. Use `--no-redact-macs` only when the engagement permits full MACs
 in deliverables.
 
+It then prints an **Active follow-up** section (and an "Active follow-up
+recommendations" table in the HTML/JSON): for each target it *describes* the one
+gated, single-target action that would reveal the most new information — e.g. a
+clientless PMKID request, or a single-client targeted deauth on a named BSSID and
+channel to capture a 4-way handshake — plus what that action would yield and the
+authorization it requires. This is advice only; the `analyze` command never
+transmits anything. Targets whose key material is already captured, open networks,
+and WPA3/Enterprise networks are marked as needing no active step.
+
 Equivalent without installing the script: `python -m wifiaudit.cli analyze capture.pcap`,
 or the minimal wrapper `python main.py capture.pcap`.
 
@@ -122,7 +134,7 @@ Every setting can be supplied as an environment variable prefixed `WIFIAUDIT_`
 | 0    | Success                                           |
 | 1    | Capture file could not be read                    |
 | 2    | Not authorized (flag missing or target off-scope) |
-| 3    | A required module is still a stub                 |
+| 3    | A required module is unavailable at run time       |
 
 ## What this tool does NOT do
 
