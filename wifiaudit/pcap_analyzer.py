@@ -284,17 +284,17 @@ def _findings_for(ap: AccessPoint) -> list[Finding]:
     return out
 
 
-def analyze_pcap(path: str) -> tuple[list[TargetAssessment], dict]:
-    frames = rdpcap(path)
-    aps = extract_aps(frames)
-    handshakes = detect_handshakes(frames)
-    pmkids = detect_pmkid(frames)
-    disconnect_counts = count_80211_disconnects(frames)
+def build_assessments(
+    aps: dict[str, AccessPoint],
+    handshakes: set[str],
+    pmkids: set[str],
+    per_bssid_disconnects: dict[str, int],
+) -> list[TargetAssessment]:
+    """Assemble TargetAssessment objects from inventory + detection results.
 
-    per_bssid_disconnects: dict[str, int] = defaultdict(int)
-    for (bssid, _client), n in disconnect_counts.items():
-        per_bssid_disconnects[bssid] += n
-
+    Shared by the batch (:func:`analyze_frames`) and streaming
+    (``LiveAnalyzer``) paths so both produce identical findings.
+    """
     assessments: list[TargetAssessment] = []
     for bssid, ap in aps.items():
         t = TargetAssessment(ap=ap, findings=_findings_for(ap))
@@ -332,6 +332,21 @@ def analyze_pcap(path: str) -> tuple[list[TargetAssessment], dict]:
                 )
             )
         assessments.append(t)
+    return assessments
+
+
+def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
+    """Analyze an in-memory frame iterable (shared by file and live paths)."""
+    aps = extract_aps(frames)
+    handshakes = detect_handshakes(frames)
+    pmkids = detect_pmkid(frames)
+    disconnect_counts = count_80211_disconnects(frames)
+
+    per_bssid_disconnects: dict[str, int] = defaultdict(int)
+    for (bssid, _client), n in disconnect_counts.items():
+        per_bssid_disconnects[bssid] += n
+
+    assessments = build_assessments(aps, handshakes, pmkids, dict(per_bssid_disconnects))
 
     scan_type, scan_evidence = classify_scan(frames)
     meta = {
@@ -343,3 +358,8 @@ def analyze_pcap(path: str) -> tuple[list[TargetAssessment], dict]:
         "pmkid_bssids": sorted(pmkids),
     }
     return assessments, meta
+
+
+def analyze_pcap(path: str) -> tuple[list[TargetAssessment], dict]:
+    """Read a pcap/pcapng file from disk and analyze it."""
+    return analyze_frames(rdpcap(path))

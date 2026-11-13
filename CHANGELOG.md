@@ -7,6 +7,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Live capture mode** (`wifiaudit live`): passively sniff a monitor-mode
+  interface and run the full detection pipeline in real time, with a table that
+  refreshes as frames arrive. Supports fixed-channel or `--hop` channel sweeping,
+  a `--duration` limit, and writing the report and/or the raw pcap on exit. A new
+  streaming `LiveAnalyzer` (`wifiaudit/live_analyzer.py`) shares one detection
+  engine with the file path, so a live session and the pcap it writes yield
+  identical findings. It only receives frames and never transmits.
 - **Active follow-up advisory** (`wifiaudit/advisor.py`): for each access point,
   `analyze` now describes the single authorized follow-up action that would reveal
   the most information — a clientless PMKID request, or a single-client targeted

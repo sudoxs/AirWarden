@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from scapy.all import Dot11, Dot11Beacon, Dot11Elt, RadioTap
 from typer.testing import CliRunner
 
 import wifiaudit.cli as cli
@@ -189,3 +190,47 @@ def test_active_pmkid_called_once(fake_active) -> None:
     (client,) = fake_active.instances
     assert client.calls[-1] == ("capture_pmkid", "aa:bb:cc:dd:ee:01")
     assert sum(1 for c in client.calls if c[0] == "capture_pmkid") == 1
+
+
+_LIVE_BEACON = (
+    RadioTap()
+    / Dot11(type=0, subtype=8, addr1="ff:ff:ff:ff:ff:ff", addr2="aa:bb:cc:dd:ee:01",
+            addr3="aa:bb:cc:dd:ee:01")
+    / Dot11Beacon(cap="ESS+privacy")
+    / Dot11Elt(ID="SSID", info=b"TestNet")
+    / Dot11Elt(ID="DSset", info=b"\x06")
+)
+
+
+class _FakeSniffer:
+    """Feeds canned frames to the analyzer on start(); records stop()."""
+
+    def __init__(self, iface, prn, store=False, monitor=False) -> None:
+        self.prn = prn
+        self.results = [_LIVE_BEACON]
+        self.stopped = False
+
+    def start(self) -> None:
+        self.prn(_LIVE_BEACON)
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+def test_live_runs_and_reports(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "AsyncSniffer", _FakeSniffer)
+    monkeypatch.setattr(cli, "_LIVE_POLL_SECONDS", 0.001)
+    result = runner.invoke(cli.app, ["live", "-i", "wlan0mon", "-t", "0"], env=ENV)
+    assert result.exit_code == 0, result.output
+    assert "wifiaudit live" in result.output
+    assert "Observed 1 AP(s)" in result.output
+
+
+def test_live_reports_capture_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _boom(**kwargs):
+        raise OSError("no such device")
+
+    monkeypatch.setattr(cli, "AsyncSniffer", _boom)
+    result = runner.invoke(cli.app, ["live", "-i", "nope0", "-t", "0"], env=ENV)
+    assert result.exit_code == 1
+    assert "Cannot start live capture" in result.output

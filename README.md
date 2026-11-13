@@ -28,11 +28,12 @@ scope file. Default mode is passive/audit.
 | Command             | Linux | macOS | Windows | Requirements                                        |
 | ------------------- | :---: | :---: | :-----: | --------------------------------------------------- |
 | `analyze` (passive) |   ✅   |   ✅   |    ✅    | Python 3.11+ only — reads an existing `.pcap` file  |
+| `live` (passive)    |   ✅   |   ⚠️   |    ❌    | Monitor-mode adapter and root — sniffs in real time |
 | `active` (gated)    |   ✅   |   ⚠️   |    ❌    | Monitor-mode adapter, root, and a running Bettercap |
 
 `analyze` is fully cross-platform: it only reads a capture you already have, so
-you can triage on any machine. `active` drives a monitor-mode radio through
-Bettercap and is intended for Linux; it will not work on stock Windows.
+you can triage on any machine. `live` and `active` drive a monitor-mode radio and
+are intended for Linux; they will not work on stock Windows.
 
 ## Threat model & authorization prerequisites
 
@@ -134,6 +135,28 @@ and WPA3/Enterprise networks are marked as needing no active step.
 
 Equivalent without installing the script: `python -m wifiaudit.cli analyze capture.pcap`,
 or the minimal wrapper `python main.py capture.pcap`.
+
+### `live` — passive real-time capture (Linux)
+
+Sniff a monitor-mode interface and run the full detection pipeline as frames
+arrive, refreshing the table live:
+
+```bash
+sudo wifiaudit live --interface wlan0mon
+```
+
+The view shows the scan type, the per-AP table, and the "Active follow-up" table,
+all updating in real time. It is **passive** — it only receives frames and never
+transmits. Useful options:
+
+- `--channel 6` — lock to one channel (needs Linux + `iw`).
+- `--hop` — sweep 2.4 GHz channels 1–13 so one radio can see the whole band.
+- `--duration 60` — stop after N seconds (default: run until `Ctrl-C`).
+- `--output-prefix report` — write `report.json` / `report.html` on exit.
+- `--write-pcap capture.pcap` — also save the captured frames for later `analyze`.
+
+A live session and the pcap it writes produce identical findings — `live` and
+`analyze` share one detection engine.
 
 ### `active` — gated, authorized engagements only
 

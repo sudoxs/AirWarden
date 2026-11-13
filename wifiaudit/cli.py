@@ -4,24 +4,37 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import threading
+import time
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
 from rich.table import Table
+from rich.text import Text
+from scapy.all import AsyncSniffer
 
 from wifiaudit import __version__
 from wifiaudit.advisor import has_active_suggestion, recommend_active_step
 from wifiaudit.auth_gate import AuthorizationError, AuthorizationGate
 from wifiaudit.bettercap_client import BettercapClient
 from wifiaudit.config import load_settings, redact_mac
+from wifiaudit.live_analyzer import LiveAnalyzer
 from wifiaudit.models import TargetAssessment
 from wifiaudit.pcap_analyzer import analyze_pcap
 from wifiaudit.report import to_html, to_json, top_finding
 from wifiaudit.risk_scorer import score_target
 
+EXIT_CAPTURE = 1
 EXIT_NOT_AUTHORIZED = 2
 EXIT_STUB = 3
+
+# How often the live view refreshes its snapshot (seconds). Patched low in tests.
+_LIVE_POLL_SECONDS = 1.0
+# 2.4 GHz channels swept when --hop is set.
+_HOP_CHANNELS = tuple(range(1, 14))
 
 app = typer.Typer(
     help="wifiaudit — defensive WiFi audit tool for AUTHORIZED engagements only.",
@@ -113,6 +126,62 @@ def _active_followup_table(assessments: list[TargetAssessment], redact: bool) ->
             f"{rec.rationale} {rec.yields}",
         )
     return table if any_row else None
+
+
+def _set_channel(interface: str, channel: int) -> bool:
+    """Best-effort channel set via ``iw`` (Linux). Returns False if it did not work."""
+    try:
+        subprocess.run(
+            ["iw", "dev", interface, "set", "channel", str(channel)],
+            check=True,
+            capture_output=True,
+            timeout=5,
+        )
+        return True
+    except Exception:
+        return False
+
+
+class _ChannelHopper(threading.Thread):
+    """Daemon thread that sweeps channels so a single radio can see the whole band."""
+
+    def __init__(self, interface: str, channels: tuple[int, ...]) -> None:
+        super().__init__(daemon=True)
+        self._interface = interface
+        self._channels = channels
+        self._stop = threading.Event()
+
+    def run(self) -> None:
+        i = 0
+        while not self._stop.is_set():
+            _set_channel(self._interface, self._channels[i % len(self._channels)])
+            i += 1
+            self._stop.wait(0.4)
+
+    def stop(self) -> None:
+        self._stop.set()
+
+
+def _scored_snapshot(analyzer: LiveAnalyzer) -> tuple[list[TargetAssessment], dict]:
+    assessments, meta = analyzer.snapshot()
+    for t in assessments:
+        t.risk_score = score_target(t)
+    assessments.sort(key=lambda t: t.risk_score, reverse=True)
+    return assessments, meta
+
+
+def _live_renderable(assessments: list[TargetAssessment], meta: dict, redact: bool) -> Group:
+    scan_type = _dash(getattr(meta.get("scan_type"), "value", meta.get("scan_type")))
+    header = Text(
+        f"Live — scan type: {scan_type}   "
+        f"APs: {meta.get('aps_total', 0)}   frames: {meta.get('frames_total', 0)}",
+        style="bold",
+    )
+    items: list[Any] = [header, _assessment_table(assessments, redact)]
+    active = _active_followup_table(assessments, redact)
+    if active is not None:
+        items.append(active)
+    return Group(*items)
 
 
 @app.command()
@@ -249,6 +318,107 @@ def active(
     except AuthorizationError as exc:
         console.print(f"[bold red]Not authorized:[/] {exc}")
         raise typer.Exit(EXIT_NOT_AUTHORIZED) from None
+
+
+@app.command()
+def live(
+    interface: Annotated[
+        str,
+        typer.Option("--interface", "-i", help="Monitor-mode interface to sniff."),
+    ],
+    channel: Annotated[
+        int | None,
+        typer.Option("--channel", "-c", help="Lock to this channel (Linux; needs 'iw')."),
+    ] = None,
+    hop: Annotated[
+        bool,
+        typer.Option("--hop/--no-hop", help="Sweep 2.4 GHz channels 1-13 (Linux; needs 'iw')."),
+    ] = False,
+    duration: Annotated[
+        float | None,
+        typer.Option("--duration", "-t", help="Stop after N seconds (default: until Ctrl-C)."),
+    ] = None,
+    output_prefix: Annotated[
+        str | None,
+        typer.Option("--output-prefix", "-o", help="Write <prefix>.json/.html on exit."),
+    ] = None,
+    write_pcap: Annotated[
+        str | None,
+        typer.Option("--write-pcap", help="Also save the captured frames to this pcap."),
+    ] = None,
+    redact_macs: Annotated[
+        bool,
+        typer.Option("--redact-macs/--no-redact-macs", envvar="WIFIAUDIT_REDACT_MACS"),
+    ] = True,
+) -> None:
+    """Sniff a monitor-mode interface and detect in real time (passive; nothing is sent)."""
+    console = _console()
+    settings = load_settings(interface=interface, redact_macs=redact_macs)
+    console.print(
+        "[bold]wifiaudit live[/] — passive monitoring, authorized engagement only. "
+        "Frames are received only; nothing is transmitted."
+    )
+
+    analyzer = LiveAnalyzer()
+    try:
+        sniffer = AsyncSniffer(
+            iface=settings.interface,
+            prn=analyzer.process,
+            store=bool(write_pcap),
+            monitor=True,
+        )
+        sniffer.start()
+    except Exception as exc:
+        console.print(
+            f"[bold red]Cannot start live capture on {settings.interface!r}:[/] {exc}\n"
+            "Live capture needs a monitor-mode interface and root (Linux)."
+        )
+        raise typer.Exit(EXIT_CAPTURE) from None
+
+    hopper: _ChannelHopper | None = None
+    if channel is not None:
+        if not _set_channel(settings.interface, channel):
+            console.print(f"[yellow]Could not set channel {channel} (needs Linux + 'iw').[/]")
+    elif hop:
+        hopper = _ChannelHopper(settings.interface, _HOP_CHANNELS)
+        hopper.start()
+
+    start = time.monotonic()
+    try:
+        with Live(console=console, refresh_per_second=4, screen=False) as view:
+            while True:
+                assessments, meta = _scored_snapshot(analyzer)
+                view.update(_live_renderable(assessments, meta, settings.redact_macs))
+                if duration is not None and time.monotonic() - start >= duration:
+                    break
+                time.sleep(_LIVE_POLL_SECONDS)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        sniffer.stop()
+        if hopper is not None:
+            hopper.stop()
+
+    assessments, meta = _scored_snapshot(analyzer)
+    console.print(
+        f"Stopped. Observed {meta['aps_total']} AP(s) in {meta['frames_total']} frame(s)."
+    )
+
+    if write_pcap:
+        try:
+            from scapy.all import wrpcap
+
+            wrpcap(write_pcap, sniffer.results)
+            console.print(f"Wrote capture to {write_pcap}")
+        except Exception as exc:
+            console.print(f"[yellow]Could not write pcap: {exc}[/]")
+
+    if output_prefix:
+        json_path = f"{output_prefix}.json"
+        html_path = f"{output_prefix}.html"
+        to_json(assessments, meta, json_path, redact_macs=settings.redact_macs)
+        to_html(assessments, meta, html_path, redact_macs=settings.redact_macs)
+        console.print(f"Wrote {json_path} and {html_path}")
 
 
 if __name__ == "__main__":
