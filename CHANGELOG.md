@@ -7,6 +7,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Confirmed vs. potential states** (`wifiaudit/state.py`): every finding is labelled
+  `confirmed` (the network is vulnerable now) or `potential` (vulnerable only if a
+  condition/attack is met), with the triggering condition spelled out. New conditional
+  findings make the "potential" case explicit per category: `PSK_OFFLINE_IF_CAPTURED`
+  (WPA/WPA2 with no captured handshake), `SAE_ONLINE_ONLY` (WPA3), `OWE_EVIL_TWIN`
+  (Enhanced Open — now detected), and `ENTERPRISE_ROGUE_AP` (802.1X). The report shows a
+  "Potential (conditional) vulnerabilities" table and confirmed/potential counts; JSON
+  carries `state` and `condition` on each finding.
 - **Exposure / data-leak classification** (`wifiaudit/exposure.py`): every finding is
   tagged with what leaked (identity, key-material, credential, session cookie,
   plaintext data, or a weakness), where it came from, and how abusable it is. The

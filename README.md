@@ -15,6 +15,9 @@ engagements. It:
   HTTP credential POSTs, session cookies, and Basic-auth — by host and field name,
   never dumping the secret values,
 - classifies every finding as an exposure (what leaked, from where, how abusable),
+- labels each finding **confirmed** (vulnerable now) or **potential** (vulnerable only
+  if a condition/attack is met) and states that condition — e.g. WPA/WPA2 with no
+  captured handshake, WPA3-SAE, OWE, or an Enterprise network reachable via a rogue AP,
 - scores per-AP risk and writes JSON, CSV, and HTML reports,
 - for each target, **describes** the single authorized follow-up action that would
   reveal the most (clientless PMKID request, or a single-client targeted deauth on

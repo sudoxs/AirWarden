@@ -15,6 +15,7 @@ from wifiaudit.advisor import has_active_suggestion, recommend_active_step
 from wifiaudit.config import redact_mac
 from wifiaudit.exposure import LEAK_KINDS, classify_exposures, is_leak
 from wifiaudit.models import Encryption, Finding, TargetAssessment
+from wifiaudit.state import POTENTIAL, finding_state
 
 FOOTER = "Authorized engagement only. Active actions require written authorization."
 
@@ -61,6 +62,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <table class="summary">
   <tr><td>Scan type</td><td>{{ scan_type }}</td></tr>
   <tr><td>Total APs</td><td>{{ total }}</td></tr>
+  <tr><td>Confirmed issues</td><td>{{ confirmed_count }}</td></tr>
+  <tr><td>Potential (conditional)</td><td>{{ potential_count }}</td></tr>
   {% for band, count in bands.items() %}
   <tr><td>Risk {{ band }}</td><td>{{ count }}</td></tr>
   {% endfor %}
@@ -117,6 +120,23 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <ul>
   {% for bssid in follow_up %}<li>{{ bssid }}</li>{% endfor %}
 </ul>
+{% else %}
+<p>None.</p>
+{% endif %}
+
+<h2>Potential (conditional) vulnerabilities</h2>
+<p class="caption">Not exploitable as-is, but each becomes a real risk if its condition is
+met. Confirmed issues appear in the table above.</p>
+{% if potential_rows %}
+<table>
+  <thead><tr><th>BSSID</th><th>SSID</th><th>Finding</th><th>If this happens…</th></tr></thead>
+  <tbody>
+  {% for p in potential_rows %}
+    <tr><td>{{ p.bssid }}</td><td>{{ p.ssid }}</td><td>{{ p.code }}</td>
+    <td>{{ p.condition }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
 {% else %}
 <p>None.</p>
 {% endif %}
@@ -225,6 +245,8 @@ def _serialize(t: TargetAssessment, redact: bool) -> dict[str, Any]:
     ap["clients"] = sorted(_mac(c, redact) for c in ap["clients"])
     data["active_recommendation"] = asdict(recommend_active_step(t))
     data["exposures"] = [asdict(e) for e in classify_exposures(t.findings)]
+    for fd, f in zip(data["findings"], t.findings, strict=True):
+        fd["state"], fd["condition"] = finding_state(f)
     return data
 
 
@@ -319,10 +341,22 @@ def to_html(
         ({**s, "aps": len(s["aps"])} for s in exposure_agg.values()),
         key=lambda r: (not r["leak"], _leak_order.get(r["what"], 99), r["code"]),
     )
+    potential_rows: list[dict[str, Any]] = []
+    confirmed_count = 0
+    potential_count = 0
     for t in assessments:
         ap = t.ap
         bssid = _mac(ap.bssid, redact_macs)
         bands[risk_band(t.risk_score)] += 1
+        for f in t.findings:
+            state, condition = finding_state(f)
+            if state == POTENTIAL:
+                potential_count += 1
+                potential_rows.append(
+                    {"bssid": bssid, "ssid": _dash(ap.ssid), "code": f.code, "condition": condition}
+                )
+            else:
+                confirmed_count += 1
         if needs_targeted_follow_up(t):
             follow_up.append(bssid)
         rec = recommend_active_step(t)
@@ -359,7 +393,10 @@ def to_html(
         scan_type=_dash(_value(meta.get("scan_type"))),
         total=len(assessments),
         bands=bands,
+        confirmed_count=confirmed_count,
+        potential_count=potential_count,
         exposure_rows=exposure_rows,
+        potential_rows=potential_rows,
         rows=rows,
         follow_up=follow_up,
         active_rows=active_rows,

@@ -31,6 +31,7 @@ _DISCONNECT_FIELD = "deauth_frames"
 _PSK_AKMS = frozenset({2, 4, 6})  # PSK, FT-PSK, PSK-SHA256
 _SAE_AKMS = frozenset({8, 9})  # SAE, FT-SAE
 _ENT_AKMS = frozenset({1, 3, 5, 11, 12})  # 802.1X variants
+_OWE_AKM = 18  # Opportunistic Wireless Encryption (Enhanced Open)
 
 # EAP method types worth flagging (RFC 3748 + common vendor).
 _EAP_NAMES = {
@@ -307,6 +308,21 @@ def detect_wpa3_transition(frames) -> set[str]:
     return out
 
 
+def detect_owe(frames) -> set[str]:
+    """Return BSSIDs advertising OWE (Enhanced Open) — encrypted but unauthenticated."""
+    out: set[str] = set()
+    for f in frames:
+        if not (f.haslayer(Dot11Beacon) or f.haslayer(Dot11ProbeResp)):
+            continue
+        try:
+            bssid = f[Dot11].addr3.lower()
+        except Exception:
+            continue
+        if bssid and _OWE_AKM in _rsn_akm_set_of(f):
+            out.add(bssid)
+    return out
+
+
 def _eap_from_frame(f: Any) -> tuple[int, int] | None:
     """Return (eap_code, eap_type) for an EAPOL EAP-Packet frame, else None."""
     try:
@@ -451,6 +467,59 @@ def _eap_findings(info: dict[str, Any]) -> list[Finding]:
     return out
 
 
+def _conditional_findings(
+    ap: AccessPoint,
+    bssid: str,
+    has_material: bool,
+    transition: set[str],
+    owe: set[str],
+    has_weak_eap: bool,
+) -> list[Finding]:
+    """POTENTIAL (conditional) findings: vulnerable only if a condition/attack is met."""
+    out: list[Finding] = []
+    if bssid in owe:
+        out.append(
+            Finding(
+                "OWE_EVIL_TWIN",
+                "medium",
+                0.6,
+                "OWE (Enhanced Open): traffic is encrypted but the AP is not authenticated",
+                "Prefer WPA3-Enterprise or AP pinning; an evil-twin can MitM clients.",
+            )
+        )
+    elif ap.encryption in (Encryption.WPA2, Encryption.WPA) and not has_material:
+        out.append(
+            Finding(
+                "PSK_OFFLINE_IF_CAPTURED",
+                "medium",
+                0.6,
+                "WPA/WPA2-PSK with no handshake or PMKID captured yet",
+                "Use a long random passphrase or WPA3; a captured handshake is crackable offline.",
+            )
+        )
+    elif ap.encryption == Encryption.WPA3 and bssid not in transition and not has_material:
+        out.append(
+            Finding(
+                "SAE_ONLINE_ONLY",
+                "low",
+                0.5,
+                "WPA3-SAE: no offline-crackable material is exposed",
+                "Only online guessing applies; still choose a strong passphrase.",
+            )
+        )
+    if ap.encryption == Encryption.ENTERPRISE and not has_weak_eap:
+        out.append(
+            Finding(
+                "ENTERPRISE_ROGUE_AP",
+                "medium",
+                0.6,
+                "802.1X/Enterprise: credentials could be harvested via a rogue AP",
+                "Enforce RADIUS server-certificate validation (CA pinning) on every client.",
+            )
+        )
+    return out
+
+
 def build_assessments(
     aps: dict[str, AccessPoint],
     handshakes: set[str],
@@ -459,6 +528,7 @@ def build_assessments(
     transition: set[str] | None = None,
     eap: dict[str, dict[str, Any]] | None = None,
     http_exposure: dict[str, dict[tuple[str, str], Finding]] | None = None,
+    owe: set[str] | None = None,
 ) -> list[TargetAssessment]:
     """Assemble TargetAssessment objects from inventory + detection results.
 
@@ -468,6 +538,7 @@ def build_assessments(
     transition = transition or set()
     eap = eap or {}
     http_exposure = http_exposure or {}
+    owe = owe or set()
     assessments: list[TargetAssessment] = []
     for bssid, ap in aps.items():
         t = TargetAssessment(ap=ap, findings=_findings_for(ap))
@@ -518,6 +589,13 @@ def build_assessments(
                     "Enable PMF; investigate the source of the disconnect frames.",
                 )
             )
+        has_material = bssid in handshakes or bssid in pmkids
+        has_weak_eap = bssid in eap and bool(
+            {m for m in (eap[bssid].get("methods") or set())} & _WEAK_EAP
+        )
+        t.findings.extend(
+            _conditional_findings(ap, bssid, has_material, transition, owe, has_weak_eap)
+        )
         assessments.append(t)
     return assessments
 
@@ -534,6 +612,7 @@ def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
     handshakes = detect_handshakes(frames)
     pmkids = detect_pmkid(frames)
     transition = detect_wpa3_transition(frames)
+    owe = detect_owe(frames)
     eap = detect_eap(frames)
     http = detect_http_exposure(frames)
     probed = collect_probe_ssids(frames)
@@ -544,7 +623,7 @@ def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
         per_bssid_disconnects[bssid] += n
 
     assessments = build_assessments(
-        aps, handshakes, pmkids, dict(per_bssid_disconnects), transition, eap, http
+        aps, handshakes, pmkids, dict(per_bssid_disconnects), transition, eap, http, owe
     )
 
     scan_type, scan_evidence = classify_scan(frames)
@@ -556,6 +635,7 @@ def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
         "handshake_bssids": sorted(handshakes),
         "pmkid_bssids": sorted(pmkids),
         "transition_bssids": sorted(transition),
+        "owe_bssids": sorted(owe),
         "probed_ssids": sorted(probed),
         "evil_twin_ssids": _evil_twin_ssids(aps, probed),
     }

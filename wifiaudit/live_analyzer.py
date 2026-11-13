@@ -22,6 +22,7 @@ from wifiaudit.http_exposure import _bssid_of as _http_bssid_of
 from wifiaudit.http_exposure import frame_exposures
 from wifiaudit.models import AccessPoint, Finding, TargetAssessment
 from wifiaudit.pcap_analyzer import (
+    _OWE_AKM,
     _channel_of,
     _classify_eapol_msg,
     _eap_from_frame,
@@ -47,6 +48,7 @@ class LiveAnalyzer:
         self._eapol: dict[tuple[str, str], set[int]] = defaultdict(set)
         self._pmkids: set[str] = set()
         self._transition: set[str] = set()
+        self._owe: set[str] = set()
         self._eap: dict[str, dict[str, Any]] = {}
         self._http: dict[str, dict[tuple[str, str], Finding]] = {}
         self._disconnects: dict[str, int] = defaultdict(int)
@@ -113,8 +115,11 @@ class LiveAnalyzer:
             ap.encryption = enc
         ap.pmf_enabled = ap.pmf_enabled or pmf
         ap.wps_enabled = ap.wps_enabled or _has_wps(f)
-        if _is_transition(_rsn_akm_set_of(f)):
+        akms = _rsn_akm_set_of(f)
+        if _is_transition(akms):
             self._transition.add(bssid)
+        if _OWE_AKM in akms:
+            self._owe.add(bssid)
 
     def _update_eapol(self, f: Any) -> None:
         try:
@@ -182,6 +187,7 @@ class LiveAnalyzer:
             set(self._transition),
             self._eap,
             self._http,
+            set(self._owe),
         )
         channel_spread = len([c for c, n in self._channels.items() if n >= 3])
         scan_type, evidence = classify_counts(
@@ -200,6 +206,7 @@ class LiveAnalyzer:
             "handshake_bssids": sorted(handshakes),
             "pmkid_bssids": sorted(self._pmkids),
             "transition_bssids": sorted(self._transition),
+            "owe_bssids": sorted(self._owe),
             "probed_ssids": sorted(probed),
             "evil_twin_ssids": _evil_twin_ssids(self.aps, probed),
         }

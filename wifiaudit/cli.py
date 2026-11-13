@@ -27,6 +27,7 @@ from wifiaudit.models import TargetAssessment
 from wifiaudit.pcap_analyzer import analyze_pcap
 from wifiaudit.report import to_html, to_json, top_finding
 from wifiaudit.risk_scorer import score_target
+from wifiaudit.state import is_potential
 
 EXIT_CAPTURE = 1
 EXIT_NOT_AUTHORIZED = 2
@@ -241,6 +242,11 @@ def analyze(
     evil = meta.get("evil_twin_ssids") or []
     if evil:
         console.print(f"Evil-twin bait (probed, not in range): [bold]{', '.join(evil)}[/]")
+
+    all_findings = [f for t in assessments for f in t.findings]
+    potential = sum(1 for f in all_findings if is_potential(f))
+    confirmed = len(all_findings) - potential
+    console.print(f"Issues — [bold]confirmed:[/] {confirmed}  [bold]potential:[/] {potential}")
 
     exposures = [e for t in assessments for e in classify_exposures(t.findings)]
     leaks = sorted({e.what for e in exposures if is_leak(e)})
