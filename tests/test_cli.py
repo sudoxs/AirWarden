@@ -54,6 +54,14 @@ def test_help_lists_commands() -> None:
     assert "active" in result.output
 
 
+def test_version_flag() -> None:
+    from wifiaudit import __version__
+
+    result = runner.invoke(cli.app, ["--version"], env=ENV)
+    assert result.exit_code == 0
+    assert __version__ in result.output
+
+
 def test_analyze_renders_and_writes(tmp_path: Path, patched_analysis) -> None:
     prefix = tmp_path / "out"
     result = runner.invoke(cli.app, ["analyze", "x.pcap", "-o", str(prefix)], env=ENV)

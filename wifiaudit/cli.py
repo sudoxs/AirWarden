@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from wifiaudit import __version__
 from wifiaudit.advisor import has_active_suggestion, recommend_active_step
 from wifiaudit.auth_gate import AuthorizationError, AuthorizationGate
 from wifiaudit.bettercap_client import BettercapClient
@@ -47,6 +48,27 @@ def _stub_exit(console: Console, module: str) -> typer.Exit:
         "replaced at integration time. Nothing was analyzed or sent."
     )
     return typer.Exit(EXIT_STUB)
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        _console().print(f"wifiaudit {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            help="Show the wifiaudit version and exit.",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = False,
+) -> None:
+    """wifiaudit — defensive WiFi audit tool for AUTHORIZED engagements only."""
 
 
 def _assessment_table(assessments: list[TargetAssessment], redact: bool) -> Table:

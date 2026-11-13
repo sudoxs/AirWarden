@@ -23,6 +23,17 @@ scope file. Default mode is passive/audit.
 > passive audit today. The active path (`auth_gate`, `bettercap_client`) is wired
 > but needs a reachable Bettercap instance and a signed scope file at run time.
 
+## Platform support
+
+| Command             | Linux | macOS | Windows | Requirements                                        |
+| ------------------- | :---: | :---: | :-----: | --------------------------------------------------- |
+| `analyze` (passive) |   ✅   |   ✅   |    ✅    | Python 3.11+ only — reads an existing `.pcap` file  |
+| `active` (gated)    |   ✅   |   ⚠️   |    ❌    | Monitor-mode adapter, root, and a running Bettercap |
+
+`analyze` is fully cross-platform: it only reads a capture you already have, so
+you can triage on any machine. `active` drives a monitor-mode radio through
+Bettercap and is intended for Linux; it will not work on stock Windows.
+
 ## Threat model & authorization prerequisites
 
 Before any use beyond reading your own captures, you must have:
@@ -54,23 +65,50 @@ they are git-ignored.
 
 Requires Python 3.11+.
 
+**As a tool (recommended)** — an isolated, global `wifiaudit` command via
+[pipx](https://pipx.pypa.io):
+
 ```bash
-python -m venv .venv
+pipx install .
+```
+
+Then run it from anywhere:
+
+```bash
+wifiaudit --version
+```
+
+**In a virtual environment** — if you prefer a plain venv:
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 ```
 
 ```bash
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install .
 ```
+
+**For development** — editable install with test and lint tools:
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-Or runtime dependencies only:
+## Quickstart
+
+No capture handy? Generate a tiny sample and analyze it — works on any OS:
 
 ```bash
-pip install -r requirements.txt
+python make_sample.py
 ```
+
+```bash
+wifiaudit analyze sample.pcap --output-prefix report
+```
+
+Open `report.html` in a browser for the full table, the risk summary, and the
+"Active follow-up recommendations" section. `report.json` holds the same data for
+tooling. That is the entire passive workflow — no radio, no root, nothing sent.
 
 ## Usage
 
