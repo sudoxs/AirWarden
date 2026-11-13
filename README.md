@@ -229,3 +229,13 @@ You are solely responsible for obtaining authorization and complying with all
 applicable laws and your engagement's rules. The authors accept no liability
 for misuse. Authorized engagement only. Active actions require written
 authorization.
+
+## License
+
+AirWarden is **proprietary — personal and authorized use only**. It is **not**
+open source. You may use it for lawful, authorized security testing and for
+private study and research. You may **not** copy, redistribute, modify-and-share,
+or use it commercially **without prior written permission** from the copyright
+holder. See [LICENSE](LICENSE) for the full terms.
+
+Copyright © 2026 sudoxs. All rights reserved.
