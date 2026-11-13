@@ -21,6 +21,7 @@ from wifiaudit.advisor import has_active_suggestion, recommend_active_step
 from wifiaudit.auth_gate import AuthorizationError, AuthorizationGate
 from wifiaudit.bettercap_client import BettercapClient
 from wifiaudit.config import load_settings, redact_mac
+from wifiaudit.exposure import classify_exposures, is_leak
 from wifiaudit.live_analyzer import LiveAnalyzer
 from wifiaudit.models import TargetAssessment
 from wifiaudit.pcap_analyzer import analyze_pcap
@@ -240,6 +241,12 @@ def analyze(
     evil = meta.get("evil_twin_ssids") or []
     if evil:
         console.print(f"Evil-twin bait (probed, not in range): [bold]{', '.join(evil)}[/]")
+
+    exposures = [e for t in assessments for e in classify_exposures(t.findings)]
+    leaks = sorted({e.what for e in exposures if is_leak(e)})
+    if exposures:
+        tail = f" — data leaks: {', '.join(leaks)}" if leaks else ""
+        console.print(f"Exposures classified: {len(exposures)}{tail}")
 
     console.print(f"Wrote {json_path} and {html_path}")
 

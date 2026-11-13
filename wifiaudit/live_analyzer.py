@@ -18,7 +18,9 @@ from typing import Any
 
 from scapy.all import EAPOL, Dot11, Dot11Beacon, Dot11ProbeReq, Dot11ProbeResp
 
-from wifiaudit.models import AccessPoint, TargetAssessment
+from wifiaudit.http_exposure import _bssid_of as _http_bssid_of
+from wifiaudit.http_exposure import frame_exposures
+from wifiaudit.models import AccessPoint, Finding, TargetAssessment
 from wifiaudit.pcap_analyzer import (
     _channel_of,
     _classify_eapol_msg,
@@ -46,6 +48,7 @@ class LiveAnalyzer:
         self._pmkids: set[str] = set()
         self._transition: set[str] = set()
         self._eap: dict[str, dict[str, Any]] = {}
+        self._http: dict[str, dict[tuple[str, str], Finding]] = {}
         self._disconnects: dict[str, int] = defaultdict(int)
         self._frames = 0
         # scan-classification counters
@@ -79,7 +82,19 @@ class LiveAnalyzer:
         if f.haslayer(EAPOL):
             self._update_eapol(f)
             self._update_eap(f)
+        self._update_http(f)
         self._update_disconnect(f)
+
+    def _update_http(self, f: Any) -> None:
+        pairs = frame_exposures(f)
+        if not pairs:
+            return
+        bssid = _http_bssid_of(f)
+        if not bssid:
+            return
+        per = self._http.setdefault(bssid, {})
+        for key, finding in pairs:
+            per.setdefault(key, finding)
 
     def _update_ap(self, f: Any) -> None:
         try:
@@ -166,6 +181,7 @@ class LiveAnalyzer:
             dict(self._disconnects),
             set(self._transition),
             self._eap,
+            self._http,
         )
         channel_spread = len([c for c, n in self._channels.items() if n >= 3])
         scan_type, evidence = classify_counts(

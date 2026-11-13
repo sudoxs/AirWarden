@@ -13,6 +13,7 @@ from jinja2 import Environment, select_autoescape
 
 from wifiaudit.advisor import has_active_suggestion, recommend_active_step
 from wifiaudit.config import redact_mac
+from wifiaudit.exposure import LEAK_KINDS, classify_exposures, is_leak
 from wifiaudit.models import Encryption, Finding, TargetAssessment
 
 FOOTER = "Authorized engagement only. Active actions require written authorization."
@@ -64,6 +65,29 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   <tr><td>Risk {{ band }}</td><td>{{ count }}</td></tr>
   {% endfor %}
 </table>
+
+<h2>Exposure &amp; data-leak summary</h2>
+<p class="caption">What leaked, from where, and how an attacker would use it. Rows marked
+&#9679; are actual secret/data leaks; the rest are weaknesses.</p>
+{% if exposure_rows %}
+<table>
+  <thead>
+    <tr><th></th><th>What</th><th>Finding</th><th>Source</th><th>Exploitability</th>
+    <th>Severity</th><th>APs</th></tr>
+  </thead>
+  <tbody>
+  {% for e in exposure_rows %}
+    <tr>
+      <td>{{ "●" if e.leak else "" }}</td><td>{{ e.what }}</td><td>{{ e.code }}</td>
+      <td>{{ e.source }}</td><td>{{ e.exploitability }}</td><td>{{ e.severity }}</td>
+      <td class="num">{{ e.aps }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No classified exposures.</p>
+{% endif %}
 
 <h2>Access points</h2>
 <table>
@@ -200,6 +224,7 @@ def _serialize(t: TargetAssessment, redact: bool) -> dict[str, Any]:
     ap["encryption"] = _value(ap["encryption"])
     ap["clients"] = sorted(_mac(c, redact) for c in ap["clients"])
     data["active_recommendation"] = asdict(recommend_active_step(t))
+    data["exposures"] = [asdict(e) for e in classify_exposures(t.findings)]
     return data
 
 
@@ -273,6 +298,27 @@ def to_html(
     rows = []
     follow_up = []
     active_rows = []
+    exposure_agg: dict[str, dict[str, Any]] = {}
+    for t in assessments:
+        for e in classify_exposures(t.findings):
+            slot = exposure_agg.setdefault(
+                e.code,
+                {
+                    "code": e.code,
+                    "what": e.what,
+                    "source": e.source,
+                    "exploitability": e.exploitability,
+                    "severity": e.severity,
+                    "leak": is_leak(e),
+                    "aps": set(),
+                },
+            )
+            slot["aps"].add(_mac(t.ap.bssid, redact_macs))
+    _leak_order = {k: i for i, k in enumerate(LEAK_KINDS)}
+    exposure_rows = sorted(
+        ({**s, "aps": len(s["aps"])} for s in exposure_agg.values()),
+        key=lambda r: (not r["leak"], _leak_order.get(r["what"], 99), r["code"]),
+    )
     for t in assessments:
         ap = t.ap
         bssid = _mac(ap.bssid, redact_macs)
@@ -313,6 +359,7 @@ def to_html(
         scan_type=_dash(_value(meta.get("scan_type"))),
         total=len(assessments),
         bands=bands,
+        exposure_rows=exposure_rows,
         rows=rows,
         follow_up=follow_up,
         active_rows=active_rows,

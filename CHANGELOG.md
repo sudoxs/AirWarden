@@ -7,6 +7,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Exposure / data-leak classification** (`wifiaudit/exposure.py`): every finding is
+  tagged with what leaked (identity, key-material, credential, session cookie,
+  plaintext data, or a weakness), where it came from, and how abusable it is. The
+  report and CLI show an exposure summary, and JSON carries per-AP `exposures`.
+- **Layer-7 cleartext exposure** (`wifiaudit/http_exposure.py`): on open (or
+  decrypted) captures, cleartext HTTP is flagged — credential POSTs
+  (`HTTP_CREDENTIAL`), session cookies (`HTTP_COOKIE`), and Basic-auth
+  (`HTTP_BASIC_AUTH`) — reported by host and field/cookie name. Secret values are
+  never dumped. Encrypted (WPA2/WPA3) traffic is ciphertext, so this only fires on
+  open networks or a capture already decrypted with a known PSK.
 - **More passive detections**, all from the same 802.11 capture:
   - WPA3/WPA2 **transition mode** (SAE + PSK advertised) → `WPA3_DOWNGRADE_POSSIBLE`,
     and the advisor now recommends a single-client downgrade deauth for it.

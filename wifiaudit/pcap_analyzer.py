@@ -16,6 +16,7 @@ from scapy.all import (
     rdpcap,
 )
 
+from wifiaudit.http_exposure import detect_http_exposure
 from wifiaudit.models import AccessPoint, Encryption, Finding, TargetAssessment
 from wifiaudit.scan_classifier import classify_scan
 
@@ -457,6 +458,7 @@ def build_assessments(
     per_bssid_disconnects: dict[str, int],
     transition: set[str] | None = None,
     eap: dict[str, dict[str, Any]] | None = None,
+    http_exposure: dict[str, dict[tuple[str, str], Finding]] | None = None,
 ) -> list[TargetAssessment]:
     """Assemble TargetAssessment objects from inventory + detection results.
 
@@ -465,6 +467,7 @@ def build_assessments(
     """
     transition = transition or set()
     eap = eap or {}
+    http_exposure = http_exposure or {}
     assessments: list[TargetAssessment] = []
     for bssid, ap in aps.items():
         t = TargetAssessment(ap=ap, findings=_findings_for(ap))
@@ -480,6 +483,8 @@ def build_assessments(
             )
         if bssid in eap:
             t.findings.extend(_eap_findings(eap[bssid]))
+        if bssid in http_exposure:
+            t.findings.extend(v for _k, v in sorted(http_exposure[bssid].items()))
         if bssid in handshakes:
             t.handshake_captured = True
             t.findings.append(
@@ -530,6 +535,7 @@ def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
     pmkids = detect_pmkid(frames)
     transition = detect_wpa3_transition(frames)
     eap = detect_eap(frames)
+    http = detect_http_exposure(frames)
     probed = collect_probe_ssids(frames)
     disconnect_counts = count_80211_disconnects(frames)
 
@@ -538,7 +544,7 @@ def analyze_frames(frames) -> tuple[list[TargetAssessment], dict]:
         per_bssid_disconnects[bssid] += n
 
     assessments = build_assessments(
-        aps, handshakes, pmkids, dict(per_bssid_disconnects), transition, eap
+        aps, handshakes, pmkids, dict(per_bssid_disconnects), transition, eap, http
     )
 
     scan_type, scan_evidence = classify_scan(frames)

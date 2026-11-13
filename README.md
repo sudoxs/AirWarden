@@ -11,6 +11,10 @@ engagements. It:
 - detects captured key material (4-way handshakes, PMKIDs) and deauth/disassoc floods,
 - flags Enterprise EAP methods and cleartext identity leaks, WPA3/WPA2 transition
   (downgrade) mode, and evil-twin bait (SSIDs clients probe for that no AP beacons),
+- on **open** (or decrypted) captures, flags cleartext layer-7 data exposure —
+  HTTP credential POSTs, session cookies, and Basic-auth — by host and field name,
+  never dumping the secret values,
+- classifies every finding as an exposure (what leaked, from where, how abusable),
 - scores per-AP risk and writes JSON, CSV, and HTML reports,
 - for each target, **describes** the single authorized follow-up action that would
   reveal the most (clientless PMKID request, or a single-client targeted deauth on
