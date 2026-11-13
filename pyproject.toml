@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wifiaudit"
+version = "0.1.0"
+description = "Defensive WiFi audit tool for authorized penetration-testing engagements."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    "jinja2>=3.1",
+    "scapy>=2.5",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+wifiaudit = "wifiaudit.cli:app"
+
+[tool.setuptools]
+packages = ["wifiaudit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".claude"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# models.py is a locked integration contract: keep `(str, Enum)` exactly as specified.
+"wifiaudit/models.py" = ["UP042"]

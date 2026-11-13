@@ -1,0 +1,13 @@
+{
+  "engagement_id": "ENG-0000-EXAMPLE",
+  "authorized_by": "Jane Doe, CISO, Example Corp (signed letter ref. AUTH-0000)",
+  "valid_from": "2026-01-01T00:00:00Z",
+  "valid_until": "2026-01-31T23:59:59Z",
+  "targets": [
+    "00:11:22:33:44:55",
+    "66:77:88:99:aa:bb"
+  ],
+  "active_actions": [
+    "pmkid_capture"
+  ]
+}

@@ -1,0 +1,20 @@
+# Engagement data — never commit
+scope.json
+.env
+*.pcap
+*.pcapng
+audit.log
+
+# Generated reports (report.* would also match the source module, so re-include it)
+report.*
+!wifiaudit/report.py
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
