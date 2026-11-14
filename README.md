@@ -218,6 +218,36 @@ This pipeline is built from five modules: `scan_ingestor` (airodump/iw parsing),
 and `audit_report` (CLI + JSON). Runnable example inputs and a sample JSON output
 are in [`examples/`](examples/).
 
+#### Live follow mode (`survey --follow`)
+
+`--follow` keeps `survey` running and polls its inputs for new data, reporting
+findings as they appear and **deduplicating** repeats so the console stays
+readable during a long capture:
+
+```bash
+# Terminal 1 — airodump writes a growing CSV
+sudo airodump-ng wlan0mon -w ~/wifi/live --band abg --manufacturer --wps
+
+# Terminal 2 — AirWarden follows that CSV
+airwarden survey --csv ~/wifi/live-01.csv --follow
+
+# Or with repeats visible, marked [×N]
+airwarden survey --csv ~/wifi/live-01.csv --follow --show-duplicates
+```
+
+Each new finding prints once, prefixed with a timestamp:
+
+```
+[12:34:56] [wifi-mobile] open network wifi-mobile — client traffic is unencrypted
+[i] +3 new findings, 7 duplicates suppressed
+```
+
+Follow mode is still **passive and advisory only** — it reads files other tools
+write and never performs an active action. The one-shot behavior is unchanged;
+`--follow` is opt-in. See [`docs/follow-mode.md`](docs/follow-mode.md) for the
+dedup key, the `[×N]` marker, the flags (`--interval`, `--show-duplicates` /
+`--hide-duplicates`, `--duplicate-threshold`), and the JSON schema.
+
 ### Configuration
 
 Every setting can be supplied as an environment variable prefixed `AIRWARDEN_`

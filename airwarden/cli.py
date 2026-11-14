@@ -25,6 +25,18 @@ from airwarden.auth_gate import AuthorizationError, AuthorizationGate
 from airwarden.bettercap_client import BettercapClient
 from airwarden.config import load_settings, redact_mac
 from airwarden.exposure import classify_exposures, is_leak
+from airwarden.follow import (
+    CsvTailer,
+    DedupStore,
+    FollowError,
+    attach_ssids,
+    findings_from_ap,
+    findings_from_client,
+    findings_from_pcap,
+    findings_report,
+    format_cli_line,
+    session_summary,
+)
 from airwarden.handshake_detector import detect as detect_handshakes_file
 from airwarden.live_analyzer import LiveAnalyzer
 from airwarden.models import TargetAssessment
@@ -32,7 +44,7 @@ from airwarden.pcap_analyzer import analyze_pcap
 from airwarden.pcap_extractor import extract as extract_artifacts
 from airwarden.report import to_html, to_json, top_finding
 from airwarden.risk_scorer import score_target
-from airwarden.scan_ingestor import ScanResult, ingest
+from airwarden.scan_ingestor import IncrementalScan, ScanResult, ingest
 from airwarden.state import is_potential
 
 EXIT_CAPTURE = 1
@@ -444,6 +456,135 @@ def live(
         console.print(f"Wrote {json_path} and {html_path}")
 
 
+# How long survey --follow sleeps between polls when no --interval is given, and
+# the floor the loop waits each pass. Patched low in tests.
+_FOLLOW_SLEEP = time.sleep
+
+
+def _emit_findings(
+    console: Console,
+    store: DedupStore,
+    findings: list,
+    *,
+    show_duplicates: bool,
+    threshold: int,
+    stamp: bool,
+) -> tuple[int, int]:
+    """Observe findings; print per the dedup rules. Returns (new_printed, suppressed)."""
+    new_printed = 0
+    suppressed = 0
+    for finding in findings:
+        rec, is_new = store.observe(finding)
+        ts = store.now() if stamp else None
+        if show_duplicates:
+            if rec.count >= threshold:
+                # markup=False: the [xN] / [ssid] brackets are literal, not Rich tags.
+                console.print(format_cli_line(rec, show_count=True, ts=ts), markup=False)
+        elif is_new:
+            console.print(format_cli_line(rec, show_count=False, ts=ts), markup=False)
+            new_printed += 1
+        else:
+            suppressed += 1
+    return new_printed, suppressed
+
+
+def _poll_pcap(console: Console, pcap: str, backend: str) -> list:
+    """Re-extract a (possibly growing) pcap into findings; tolerate partial writes."""
+    try:
+        artifacts = extract_artifacts(pcap, backend=backend)
+        handshakes = detect_handshakes_file(pcap)
+    except FileNotFoundError:
+        return []
+    except Exception as exc:  # a partial/locked pcap is tolerated and retried next poll
+        console.print(f"[yellow]pcap not ready ({exc}); retrying next poll.[/]")
+        return []
+    return findings_from_pcap(artifacts, handshakes)
+
+
+def _run_follow(
+    console: Console,
+    *,
+    csv: str | None,
+    iw: str | None,
+    pcap: str | None,
+    output: str | None,
+    backend: str,
+    interval: float,
+    show_duplicates: bool,
+    threshold: int,
+) -> None:
+    """Follow growing inputs, reporting newly detected findings until Ctrl-C."""
+    store = DedupStore()
+    inc = IncrementalScan()
+    files = [p for p in (csv, iw, pcap) if p]
+    console.print(
+        "[bold]airwarden survey --follow[/] — passive watch; nothing is transmitted. "
+        "Ctrl-C to stop."
+    )
+
+    # An `iw scan` dump is a static snapshot: ingest it once at startup.
+    if iw:
+        try:
+            iw_scan = ingest(None, iw)
+        except OSError as exc:
+            console.print(f"[yellow]Cannot read iw scan {iw!r}: {exc}[/]")
+        else:
+            inc.result.aps.update(iw_scan.aps)
+            iw_findings = [f for ap in iw_scan.aps.values() for f in findings_from_ap(ap)]
+            _emit_findings(console, store, iw_findings, show_duplicates=show_duplicates,
+                           threshold=threshold, stamp=True)
+
+    tailer = CsvTailer(csv) if csv else None
+    start = time.monotonic()
+    try:
+        while True:
+            new_printed = 0
+            suppressed = 0
+            if tailer is not None:
+                try:
+                    rotated, lines = tailer.poll()
+                except FollowError as exc:
+                    console.print(f"[bold red]{exc}[/]")
+                    break
+                if rotated:
+                    console.print("[i] CSV rotated/truncated; restarting parse", markup=False)
+                    inc.reset_section()
+                touched_aps, touched_clients = inc.feed(lines)
+                findings = [f for ap in touched_aps for f in findings_from_ap(ap)]
+                findings += [f for c in touched_clients for f in findings_from_client(c)]
+                attach_ssids(findings, inc.result.aps)
+                n, s = _emit_findings(console, store, findings, show_duplicates=show_duplicates,
+                                      threshold=threshold, stamp=True)
+                new_printed += n
+                suppressed += s
+            if pcap:
+                pcap_findings = _poll_pcap(console, pcap, backend)
+                attach_ssids(pcap_findings, inc.result.aps)
+                n, s = _emit_findings(console, store, pcap_findings,
+                                      show_duplicates=show_duplicates, threshold=threshold,
+                                      stamp=True)
+                new_printed += n
+                suppressed += s
+            if not show_duplicates and new_printed:
+                console.print(
+                    f"[i] +{new_printed} new findings, {suppressed} duplicates suppressed",
+                    markup=False,
+                )
+            _FOLLOW_SLEEP(interval)
+    except KeyboardInterrupt:
+        pass
+
+    duration = time.monotonic() - start
+    json_path: str | None = None
+    if output:
+        report = findings_report(store, follow_mode=True, files_followed=files)
+        to_json_file(report, output)
+        json_path = output
+    console.print(
+        "\n" + session_summary(store, duration=duration, json_path=json_path), markup=False
+    )
+
+
 @app.command()
 def survey(
     csv: Annotated[
@@ -466,12 +607,44 @@ def survey(
         str,
         typer.Option("--backend", help="pcap extractor backend: auto | scapy | tshark."),
     ] = "auto",
+    follow: Annotated[
+        bool,
+        typer.Option("--follow", "-f", help="Keep running and poll the inputs for new data."),
+    ] = False,
+    interval: Annotated[
+        float,
+        typer.Option("--interval", help="Polling interval in seconds for --follow."),
+    ] = 2.0,
+    show_duplicates: Annotated[
+        bool,
+        typer.Option(
+            "--show-duplicates/--hide-duplicates",
+            help="Show repeated findings with a [xN] marker (default: hide repeats).",
+        ),
+    ] = False,
+    duplicate_threshold: Annotated[
+        int,
+        typer.Option(
+            "--duplicate-threshold",
+            help="With --show-duplicates, only surface a repeat once its count reaches N.",
+        ),
+    ] = 1,
 ) -> None:
-    """Passive enumeration: ingest a scan and/or pcap and print an advisory report."""
+    """Passive enumeration: ingest a scan and/or pcap and print an advisory report.
+
+    With --follow, keep running and report findings as they appear in the growing
+    inputs, deduplicated by a stable key. Still passive and advisory only.
+    """
     console = _console()
     if csv is None and iw is None and pcap is None:
         console.print("[bold red]Nothing to do:[/] pass --csv, --iw, and/or --pcap.")
         raise typer.Exit(EXIT_CAPTURE)
+
+    if follow:
+        _run_follow(console, csv=csv, iw=iw, pcap=pcap, output=output, backend=backend,
+                    interval=interval, show_duplicates=show_duplicates,
+                    threshold=duplicate_threshold)
+        return
 
     scan = ingest(csv, iw) if (csv or iw) else ScanResult()
     artifacts = []
@@ -486,6 +659,19 @@ def survey(
 
     report = assemble_survey(scan, artifacts, handshakes)
     render_survey(console, report)
+
+    # Enrich the JSON with the deduplicated finding list + session block (one-shot:
+    # each finding is observed exactly once, so follow_mode is false).
+    store = DedupStore()
+    findings = [f for ap in scan.aps.values() for f in findings_from_ap(ap)]
+    findings += [f for c in scan.clients for f in findings_from_client(c)]
+    findings += findings_from_pcap(artifacts, handshakes)
+    attach_ssids(findings, scan.aps)
+    for finding in findings:
+        store.observe(finding)
+    files = [p for p in (csv, iw, pcap) if p]
+    report.update(findings_report(store, follow_mode=False, files_followed=files))
+
     if output:
         to_json_file(report, output)
         console.print(f"\nWrote {output}")

@@ -13,6 +13,7 @@ BSSID, with `iw` enriching the airodump inventory.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -83,6 +84,15 @@ class ScanResult:
 
 _AP_HEADER = "BSSID,"
 _CLIENT_HEADER = "Station MAC,"
+
+
+def csv_section(line: str) -> str | None:
+    """Return ``"ap"`` / ``"client"`` if ``line`` is a section header, else None."""
+    if line.startswith(_AP_HEADER):
+        return "ap"
+    if line.startswith(_CLIENT_HEADER):
+        return "client"
+    return None
 
 
 def _parse_int(value: str | None) -> int | None:
@@ -254,6 +264,18 @@ def _merge_iw(result: ScanResult, iw_aps: dict[str, ScanAP]) -> None:
         ap.wpa3_transition = ap.wpa3_transition or iw_ap.wpa3_transition
 
 
+def _attach_probe_ssids(result: ScanResult) -> None:
+    """Attach probe SSIDs of associated clients to their AP (idempotent)."""
+    by_bssid: dict[str, list[str]] = {}
+    for client in result.clients:
+        if client.bssid:
+            by_bssid.setdefault(client.bssid, []).extend(client.probes)
+    for bssid, probes in by_bssid.items():
+        ap = result.aps.get(bssid)
+        if ap is not None:
+            ap.probe_ssids = sorted(dict.fromkeys(probes))
+
+
 def ingest(csv_path: str | Path | None = None, iw_path: str | Path | None = None) -> ScanResult:
     """Ingest an airodump CSV and/or an `iw scan` dump into one ScanResult.
 
@@ -270,13 +292,76 @@ def ingest(csv_path: str | Path | None = None, iw_path: str | Path | None = None
         iw_aps = parse_iw_scan(Path(iw_path).read_text(encoding="utf-8", errors="ignore"))
         _merge_iw(result, iw_aps)
 
-    # Attach probe SSIDs of associated clients to their AP.
-    by_bssid: dict[str, list[str]] = {}
-    for client in result.clients:
-        if client.bssid:
-            by_bssid.setdefault(client.bssid, []).extend(client.probes)
-    for bssid, probes in by_bssid.items():
-        ap = result.aps.get(bssid)
-        if ap is not None:
-            ap.probe_ssids = sorted(dict.fromkeys(probes))
+    _attach_probe_ssids(result)
     return result
+
+
+@dataclass
+class IncrementalScan:
+    """Feed airodump-ng CSV lines incrementally into a growing ScanResult.
+
+    airodump rewrites its CSV in place, so the same rows reappear between polls;
+    feeding them again merges idempotently and never loses a previously seen AP.
+    ``feed`` returns the APs and clients parsed in this batch (new or updated) so
+    a caller can derive findings from just the fresh rows. It tracks the current
+    CSV section (AP vs. station) across calls; a rotation/truncation restart
+    should call :meth:`reset_section` first.
+    """
+
+    result: ScanResult = field(default_factory=ScanResult)
+    section: str | None = None
+
+    def reset_section(self) -> None:
+        """Forget the current section (call when the CSV is re-read from the top)."""
+        self.section = None
+
+    def feed(self, lines: Iterable[str]) -> tuple[list[ScanAP], list[ScanClient]]:
+        """Parse ``lines`` into the registry; return the APs/clients they touched."""
+        touched_aps: list[ScanAP] = []
+        touched_clients: list[ScanClient] = []
+        for raw in lines:
+            line = raw.rstrip()
+            if not line.strip():
+                continue
+            sec = csv_section(line)
+            if sec is not None:
+                self.section = sec
+                continue
+            if self.section == "ap":
+                ap = _parse_ap_row(line)
+                if ap is not None:
+                    touched_aps.append(self._merge_ap(ap))
+            elif self.section == "client":
+                client = _parse_client_row(line)
+                if client is not None:
+                    self._merge_client(client)
+                    touched_clients.append(client)
+        _attach_probe_ssids(self.result)
+        return touched_aps, touched_clients
+
+    def _merge_ap(self, ap: ScanAP) -> ScanAP:
+        existing = self.result.aps.get(ap.bssid)
+        if existing is None:
+            self.result.aps[ap.bssid] = ap
+            for c in self.result.clients:
+                if c.bssid == ap.bssid and c.station not in ap.clients:
+                    ap.clients.append(c.station)
+            return ap
+        # The latest airodump row is authoritative for scalars; keep the lists we
+        # have accumulated (clients, probe_ssids, notes).
+        for attr in ("essid", "channel", "band", "enc", "cipher", "auth",
+                     "beacons", "data_frames", "hidden"):
+            setattr(existing, attr, getattr(ap, attr))
+        return existing
+
+    def _merge_client(self, client: ScanClient) -> None:
+        for i, c in enumerate(self.result.clients):
+            if c.station == client.station:
+                self.result.clients[i] = client
+                break
+        else:
+            self.result.clients.append(client)
+        if client.bssid and client.bssid in self.result.aps:
+            ap = self.result.aps[client.bssid]
+            if client.station not in ap.clients:
+                ap.clients.append(client.station)

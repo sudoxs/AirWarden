@@ -7,6 +7,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Live follow mode** for `airwarden survey` (`--follow` / `-f`): keep running
+  and poll the inputs for new data, reporting findings as they appear with smart
+  **deduplication**. Each finding has a stable key
+  `(finding_type, bssid, client_mac, evidence_hash)` (frame number excluded), so
+  repeats collapse onto the first occurrence while the count climbs. New flags:
+  `--interval`, `--show-duplicates` / `--hide-duplicates` (default hide), and
+  `--duplicate-threshold`. The console shows a timestamp per line, a `[×N]`
+  repetition marker with `--show-duplicates`, a per-poll `+N new / M suppressed`
+  summary when hiding, and a session summary on `Ctrl-C`. The CSV tailer reads
+  only newly appended complete lines, buffers a partial last line, and restarts
+  on truncation/rotation without losing seen APs (`scan_ingestor.IncrementalScan`).
+  The JSON report gains `count` / `first_seen` / `last_seen` / `duplicate` /
+  `duplicate_of` / `sample_frame` on every finding plus a top-level `session`
+  block; the one-shot `survey` JSON carries the same `findings` + `session`
+  blocks (`follow_mode: false`). New module `airwarden/follow.py`; documented in
+  [`docs/follow-mode.md`](docs/follow-mode.md). Still passive and advisory only —
+  no active action is performed.
 - **Passive enumeration pipeline** and the `airwarden survey` command, built from
   five modules: `scan_ingestor` (parse airodump-ng CSV and `iw dev scan` into a
   normalized AP/client model), `pcap_extractor` (tshark/scapy evidence extraction —
