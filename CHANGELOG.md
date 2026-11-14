@@ -7,6 +7,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Passive enumeration pipeline** and the `airwarden survey` command, built from
+  five modules: `scan_ingestor` (parse airodump-ng CSV and `iw dev scan` into a
+  normalized AP/client model), `pcap_extractor` (tshark/scapy evidence extraction —
+  HTTP creds/cookies/Basic-auth, EAP identities/types, TLS cert subjects, EAP-MD5,
+  MSCHAPv2/NetNTLMv2, IMSI, probes, deauth/disassoc, handshake/PMKID — each with a
+  frame number and an exact Wireshark display filter, no secret values dumped),
+  `handshake_detector` (handshake/PMKID presence per BSSID/client pair, no
+  cracking), `attack_mapper` (an advisory applicability matrix per AP: category,
+  priority, reason, preconditions, missing evidence — advisory only, no execution),
+  and `audit_report` (combined per-AP CLI + JSON report). Example inputs and a
+  sample output live in `examples/`.
 - **Confirmed vs. potential states** (`airwarden/state.py`): every finding is labelled
   `confirmed` (the network is vulnerable now) or `potential` (vulnerable only if a
   condition/attack is met), with the triggering condition spelled out. New conditional

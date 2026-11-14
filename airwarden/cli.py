@@ -18,15 +18,21 @@ from scapy.all import AsyncSniffer
 
 from airwarden import __version__
 from airwarden.advisor import has_active_suggestion, recommend_active_step
+from airwarden.audit_report import assemble as assemble_survey
+from airwarden.audit_report import render as render_survey
+from airwarden.audit_report import to_json_file
 from airwarden.auth_gate import AuthorizationError, AuthorizationGate
 from airwarden.bettercap_client import BettercapClient
 from airwarden.config import load_settings, redact_mac
 from airwarden.exposure import classify_exposures, is_leak
+from airwarden.handshake_detector import detect as detect_handshakes_file
 from airwarden.live_analyzer import LiveAnalyzer
 from airwarden.models import TargetAssessment
 from airwarden.pcap_analyzer import analyze_pcap
+from airwarden.pcap_extractor import extract as extract_artifacts
 from airwarden.report import to_html, to_json, top_finding
 from airwarden.risk_scorer import score_target
+from airwarden.scan_ingestor import ScanResult, ingest
 from airwarden.state import is_potential
 
 EXIT_CAPTURE = 1
@@ -436,6 +442,53 @@ def live(
         to_json(assessments, meta, json_path, redact_macs=settings.redact_macs)
         to_html(assessments, meta, html_path, redact_macs=settings.redact_macs)
         console.print(f"Wrote {json_path} and {html_path}")
+
+
+@app.command()
+def survey(
+    csv: Annotated[
+        str | None,
+        typer.Option("--csv", help="airodump-ng CSV (scan-01.csv) to ingest."),
+    ] = None,
+    iw: Annotated[
+        str | None,
+        typer.Option("--iw", help="`iw dev <iface> scan` text dump to ingest."),
+    ] = None,
+    pcap: Annotated[
+        str | None,
+        typer.Option("--pcap", help="pcap to extract artifacts and handshakes from."),
+    ] = None,
+    output: Annotated[
+        str | None,
+        typer.Option("--output", "-o", help="Write the combined report to this JSON file."),
+    ] = None,
+    backend: Annotated[
+        str,
+        typer.Option("--backend", help="pcap extractor backend: auto | scapy | tshark."),
+    ] = "auto",
+) -> None:
+    """Passive enumeration: ingest a scan and/or pcap and print an advisory report."""
+    console = _console()
+    if csv is None and iw is None and pcap is None:
+        console.print("[bold red]Nothing to do:[/] pass --csv, --iw, and/or --pcap.")
+        raise typer.Exit(EXIT_CAPTURE)
+
+    scan = ingest(csv, iw) if (csv or iw) else ScanResult()
+    artifacts = []
+    handshakes = []
+    if pcap:
+        try:
+            artifacts = extract_artifacts(pcap, backend=backend)
+            handshakes = detect_handshakes_file(pcap)
+        except OSError as exc:
+            console.print(f"[bold red]Cannot read pcap[/] {pcap!r}: {exc}")
+            raise typer.Exit(EXIT_CAPTURE) from None
+
+    report = assemble_survey(scan, artifacts, handshakes)
+    render_survey(console, report)
+    if output:
+        to_json_file(report, output)
+        console.print(f"\nWrote {output}")
 
 
 if __name__ == "__main__":

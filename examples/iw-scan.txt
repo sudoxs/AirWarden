@@ -1,0 +1,17 @@
+BSS f0:9f:c2:71:af:2f(on wlan0)
+	SSID: wifi-gratis
+	DS Parameter set: channel 44
+	RSN:	 * Version: 1
+		 * Group cipher: CCMP
+		 * Pairwise ciphers: CCMP
+		 * Authentication suites: OWE
+		 * Capabilities: MFP-required MFP-capable (0x00c0)
+BSS f0:9f:c2:1a:ca:25(on wlan0)
+	SSID: wifi-IT
+	DS Parameter set: channel 11
+	RSN:	 * Version: 1
+		 * Group cipher: CCMP
+		 * Pairwise ciphers: CCMP
+		 * Authentication suites: PSK SAE
+		 * Capabilities: MFP-capable (0x0080)
+	WPS:	 * Version: 1.0

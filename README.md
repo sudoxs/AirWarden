@@ -194,6 +194,30 @@ AIRWARDEN_AUTHORIZED=1 airwarden active --interface wlan0mon --pmkid 00:11:22:33
 
 The BSSID must be listed in `targets` and the action in `active_actions`.
 
+### `survey` — passive enumeration (scan + pcap)
+
+Ingest an airodump-ng CSV and/or an `iw dev scan` dump, optionally enrich it with
+evidence from a pcap, and print an advisory per-AP report:
+
+```bash
+airwarden survey --csv scan-01.csv --iw iw-scan.txt --pcap capture.pcap -o survey.json
+```
+
+Any subset of `--csv` / `--iw` / `--pcap` works. The report shows, per AP: the
+inventory, clients and probes, the extracted artifacts (each with a frame number
+and an exact Wireshark display filter), handshake/PMKID presence, and an
+**advisory applicability matrix** — which authorized test categories (OPN / WEP /
+WPA2-PSK / WPA3-SAE / MGT / OWE / WPS) are relevant, with priority, reason,
+preconditions, and the evidence still missing. It is advisory only: it runs no
+attack. `--backend` selects the pcap extractor (`auto`, `scapy`, or `tshark`);
+tshark adds TLS cert subjects, EAP-MD5, MSCHAPv2/NetNTLMv2 and IMSI extraction.
+
+This pipeline is built from five modules: `scan_ingestor` (airodump/iw parsing),
+`pcap_extractor` (evidence + frame numbers + filters), `handshake_detector`
+(handshake/PMKID presence, no cracking), `attack_mapper` (the advisory matrix),
+and `audit_report` (CLI + JSON). Runnable example inputs and a sample JSON output
+are in [`examples/`](examples/).
+
 ### Configuration
 
 Every setting can be supplied as an environment variable prefixed `AIRWARDEN_`

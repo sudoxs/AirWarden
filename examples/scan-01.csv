@@ -1,0 +1,9 @@
+BSSID, First time seen, Last time seen, channel, Speed, Privacy, Cipher, Authentication, Power, # beacons, # IV, LAN IP, ID-length, ESSID, Key
+F0:9F:C2:71:22:17, 2026-10-08 02:13:20, 2026-10-08 02:27:40, 44, 54, WPA2, CCMP, MGT, -28, 276, 688, 0.0.0.0, 11, wifi-global,
+F0:9F:C2:71:22:12, 2026-10-08 02:13:20, 2026-10-08 02:27:40, 6, 54, WPA2, CCMP, PSK, -26, 180, 40, 0.0.0.0, 11, wifi-mobile,
+F0:9F:C2:71:22:10, 2026-10-08 02:13:20, 2026-10-08 02:27:40, 6, 54, OPN, , , -29, 170, 0, 0.0.0.0, 10, wifi-guest,
+F0:9F:C2:71:22:11, 2026-10-08 02:13:20, 2026-10-08 02:27:40, 3, 54, WEP, WEP, , -31, 401, 2100, 0.0.0.0, 8, wifi-old,
+
+Station MAC, First time seen, Last time seen, Power, # packets, BSSID, Probed ESSIDs
+28:6C:07:6F:F9:44, 2026-10-08 02:14:00, 2026-10-08 02:27:00, -28, 423, F0:9F:C2:71:22:12,
+78:C1:A7:BF:72:46, 2026-10-08 02:15:00, 2026-10-08 02:26:00, -52, 138, (not associated), wifi-offices,Jason

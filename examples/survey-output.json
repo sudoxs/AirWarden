@@ -1,0 +1,231 @@
+{
+  "summary": {
+    "aps_total": 6,
+    "clients_total": 2,
+    "artifacts_total": 0
+  },
+  "aps": [
+    {
+      "bssid": "f0:9f:c2:71:22:17",
+      "essid": "wifi-global",
+      "channel": 44,
+      "band": "5GHz",
+      "enc": "WPA2",
+      "cipher": "CCMP",
+      "auth": "MGT",
+      "wps_version": null,
+      "wps_locked": null,
+      "pmf_capable": null,
+      "pmf_required": null,
+      "hidden": false,
+      "wpa3_transition": false,
+      "clients": [],
+      "probe_ssids": [],
+      "artifacts": [],
+      "handshake": {
+        "complete": false,
+        "pmkid": false,
+        "pairs": []
+      },
+      "applicability": [
+        {
+          "category": "MGT",
+          "priority": "medium",
+          "reason": "802.1X/Enterprise \u2014 EAP identities leak in the clear; weak inner auth (MD5/GTC/LEAP) is crackable, and clients that skip server-cert validation can be drawn to a rogue AP.",
+          "preconditions": "Authorized scope; for rogue-AP review, a client that does not validate the RADIUS cert.",
+          "missing_evidence": "no EAP identity captured yet; EAP method not yet observed"
+        }
+      ]
+    },
+    {
+      "bssid": "f0:9f:c2:71:22:12",
+      "essid": "wifi-mobile",
+      "channel": 6,
+      "band": "2.4GHz",
+      "enc": "WPA2",
+      "cipher": "CCMP",
+      "auth": "PSK",
+      "wps_version": null,
+      "wps_locked": null,
+      "pmf_capable": null,
+      "pmf_required": null,
+      "hidden": false,
+      "wpa3_transition": false,
+      "clients": [
+        "28:6c:07:6f:f9:44"
+      ],
+      "probe_ssids": [],
+      "artifacts": [],
+      "handshake": {
+        "complete": false,
+        "pmkid": false,
+        "pairs": []
+      },
+      "applicability": [
+        {
+          "category": "WPA2-PSK",
+          "priority": "medium",
+          "reason": "WPA/WPA2-PSK \u2014 the PSK is recoverable offline once a 4-way handshake or PMKID is captured.",
+          "preconditions": "Authorized scope; a captured handshake or PMKID.",
+          "missing_evidence": "No handshake/PMKID captured yet (needs a client auth, or an authorized deauth to force one)."
+        }
+      ]
+    },
+    {
+      "bssid": "f0:9f:c2:71:22:10",
+      "essid": "wifi-guest",
+      "channel": 6,
+      "band": "2.4GHz",
+      "enc": "OPN",
+      "cipher": null,
+      "auth": null,
+      "wps_version": null,
+      "wps_locked": null,
+      "pmf_capable": null,
+      "pmf_required": null,
+      "hidden": false,
+      "wpa3_transition": false,
+      "clients": [],
+      "probe_ssids": [],
+      "artifacts": [],
+      "handshake": {
+        "complete": false,
+        "pmkid": false,
+        "pairs": []
+      },
+      "applicability": [
+        {
+          "category": "OPN",
+          "priority": "medium",
+          "reason": "Open network \u2014 client traffic is unencrypted and readable in the capture.",
+          "preconditions": "Authorized passive capture on this AP's channel.",
+          "missing_evidence": "No cleartext HTTP credentials/cookies seen yet; capture more client traffic."
+        }
+      ]
+    },
+    {
+      "bssid": "f0:9f:c2:71:22:11",
+      "essid": "wifi-old",
+      "channel": 3,
+      "band": "2.4GHz",
+      "enc": "WEP",
+      "cipher": "WEP",
+      "auth": null,
+      "wps_version": null,
+      "wps_locked": null,
+      "pmf_capable": null,
+      "pmf_required": null,
+      "hidden": false,
+      "wpa3_transition": false,
+      "clients": [],
+      "probe_ssids": [],
+      "artifacts": [],
+      "handshake": {
+        "complete": false,
+        "pmkid": false,
+        "pairs": []
+      },
+      "applicability": [
+        {
+          "category": "WEP",
+          "priority": "high",
+          "reason": "WEP is cryptographically broken; the key is recoverable offline from captured IVs.",
+          "preconditions": "Authorized scope; enough data frames/IVs collected.",
+          "missing_evidence": ""
+        }
+      ]
+    },
+    {
+      "bssid": "f0:9f:c2:71:af:2f",
+      "essid": "wifi-gratis",
+      "channel": 44,
+      "band": "5GHz",
+      "enc": null,
+      "cipher": null,
+      "auth": "OWE",
+      "wps_version": null,
+      "wps_locked": null,
+      "pmf_capable": true,
+      "pmf_required": true,
+      "hidden": false,
+      "wpa3_transition": false,
+      "clients": [],
+      "probe_ssids": [],
+      "artifacts": [],
+      "handshake": {
+        "complete": false,
+        "pmkid": false,
+        "pairs": []
+      },
+      "applicability": [
+        {
+          "category": "OWE",
+          "priority": "medium",
+          "reason": "Enhanced Open \u2014 traffic is encrypted but the AP is unauthenticated, so an evil-twin can MitM.",
+          "preconditions": "Authorized scope.",
+          "missing_evidence": "OWE has no PSK to recover."
+        }
+      ]
+    },
+    {
+      "bssid": "f0:9f:c2:1a:ca:25",
+      "essid": "wifi-IT",
+      "channel": 11,
+      "band": "2.4GHz",
+      "enc": null,
+      "cipher": null,
+      "auth": "SAE",
+      "wps_version": "present",
+      "wps_locked": null,
+      "pmf_capable": true,
+      "pmf_required": false,
+      "hidden": false,
+      "wpa3_transition": true,
+      "clients": [],
+      "probe_ssids": [],
+      "artifacts": [],
+      "handshake": {
+        "complete": false,
+        "pmkid": false,
+        "pairs": []
+      },
+      "applicability": [
+        {
+          "category": "WPA3-SAE",
+          "priority": "high",
+          "reason": "WPA3/WPA2 transition \u2014 a WPA2-capable client can be led to a crackable WPA2 handshake (downgrade).",
+          "preconditions": "Authorized scope; a WPA2-capable client present.",
+          "missing_evidence": "No WPA2 handshake captured yet."
+        },
+        {
+          "category": "WPS",
+          "priority": "medium",
+          "reason": "WPS present advertised \u2014 the PIN may be brute-forceable (Pixie-Dust or online PIN).",
+          "preconditions": "Authorized scope; WPS not locked.",
+          "missing_evidence": "Confirm WPS lock state before any authorized test."
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "station": "28:6c:07:6f:f9:44",
+      "bssid": "f0:9f:c2:71:22:12",
+      "power": -28,
+      "packets": 423,
+      "probes": []
+    },
+    {
+      "station": "78:c1:a7:bf:72:46",
+      "bssid": null,
+      "power": -52,
+      "packets": 138,
+      "probes": [
+        "wifi-offices",
+        "Jason"
+      ]
+    }
+  ],
+  "unattributed_artifacts": [],
+  "footer": "Passive enumeration for authorized lab documentation. No active actions performed."
+}
